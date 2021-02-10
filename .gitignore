@@ -4,11 +4,6 @@
 # Reference: https://intellij-support.jetbrains.com/hc/en-us/articles/206544839
 
 # User-specific stuff:
-.idea/workspace.xml
-.idea/tasks.xml
-.idea/dictionaries
-.idea/vcs.xml
-.idea/jsLibraryMappings.xml
 .idea/
 *.iml
 find.xml
@@ -17,21 +12,6 @@ mavenVersion.xml
 ui.lnf.xml
 vcs.xml
 .Ds_Store
-
-# Sensitive or high-churn files:
-.idea/dataSources.ids
-.idea/dataSources.xml
-.idea/dataSources.local.xml
-.idea/sqlDataSources.xml
-.idea/dynamic.xml
-.idea/uiDesigner.xml
-
-# Gradle:
-.idea/gradle.xml
-.idea/libraries
-
-# Mongo Explorer plugin:
-.idea/mongoSettings.xml
 
 ## File-based project format:
 *.iws
@@ -58,6 +38,7 @@ fabric.properties
 bin/
 tmp/
 *.tmp
+*.log
 *.bak
 *.swp
 *~.nib
