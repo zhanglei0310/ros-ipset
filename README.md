@@ -1,4 +1,12 @@
-# jrodns
+# ros-ipset (Original from Jrodns)
+It is a tool original by actck. It is useful for me or any linux/ipset person using RouterOS.
+I fork it to add some other minor functions, cause it was unactived for 2 years. And jrodns is 
+really hard to link to ipset, so the new name.
+
+Also I will do a docker job, and put it on github. And...maybe changing is not so minor. Anyway 
+
+# below is the origin readme
+
 A dns proxy tool to help implement ipset for routeros.
 
 In normal, people using dnsmasq+iptables+ipset to do that thing you know.
