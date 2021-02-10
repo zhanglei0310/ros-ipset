@@ -1,6 +1,5 @@
 package tech.stacktrace.jrodns;
 
-import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -109,9 +108,7 @@ public class Application {
 
     private static String readGFWlist() throws IOException {
         File file = checkFile(gfwlistPath);
-        String s = FileUtils.readFileToString(file, StandardCharsets.UTF_8);
-        byte[] bytes = Base64.decodeBase64(s);
-        return new String(bytes, StandardCharsets.UTF_8);
+        return FileUtils.readFileToString(file, StandardCharsets.UTF_8);
     }
 
     public static void main(String[] args) throws IOException {

@@ -45,7 +45,7 @@ public class UdpTask implements Runnable {
 
             Message message = new Message(rece);
             Record question = message.getQuestion();
-            RRset[] sectionRRsets = message.getSectionRRsets(Section.ANSWER);
+            List<RRset> sectionRRsets = message.getSectionRRsets(Section.ANSWER);
             int messageId = message.getHeader().getID();
             String questionName = question.getName().toString();
             if (questionName.endsWith(".")) {
@@ -60,9 +60,8 @@ public class UdpTask implements Runnable {
             List<String> aRecordIps = new ArrayList<>();
             for (RRset rrset : sectionRRsets) {
                 if (rrset.getType() == Type.A) {
-                    Iterator iter = rrset.rrs();
-                    while (iter.hasNext()) {
-                        ARecord rd = (ARecord) iter.next();
+                    for (Record record : rrset.rrs()) {
+                        ARecord rd = (ARecord) record;
                         aRecordIps.add(rd.getAddress().getHostAddress());
                     }
                     logger.debug("remote answer -> id: {}, ips: {}", messageId, aRecordIps);
