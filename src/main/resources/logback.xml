@@ -46,6 +46,8 @@
         </filter>
     </appender>
 
+    <logger name="io.netty" level="warn" />
+
     <!-- 日志输出级别 -->
     <root level="debug">
         <appender-ref ref="STDOUT" />
