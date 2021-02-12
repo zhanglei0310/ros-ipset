@@ -1,38 +1,40 @@
-package tech.stacktrace.jrodns;
+package tech.stacktrace.jrodns
 
-import me.legrange.mikrotik.ApiConnection;
-import org.apache.commons.pool2.PooledObject;
-import org.apache.commons.pool2.PooledObjectFactory;
-import org.apache.commons.pool2.impl.DefaultPooledObject;
+import io.vertx.core.json.JsonObject
+import org.apache.commons.pool2.PooledObjectFactory
+import me.legrange.mikrotik.ApiConnection
+import kotlin.Throws
+import org.apache.commons.pool2.PooledObject
+import org.apache.commons.pool2.impl.DefaultPooledObject
+import java.lang.Exception
 
-import java.net.DatagramSocket;
+class RosApiConnFactory(val config:JsonObject) : PooledObjectFactory<ApiConnection> {
 
-public class RosApiConnFactory implements PooledObjectFactory<ApiConnection> {
+    private val rosIp = config.getString("rosIp")
+    private val rosUser = config.getString("rosUser")
+    private val rosPwd = config.getString("rosPwd")
 
-    @Override
-    public PooledObject<ApiConnection> makeObject() throws Exception {
-        ApiConnection rosConn = ApiConnection.connect(Application.rosIp);
-        rosConn.login(Application.rosUser, Application.rosPwd);
-        return new DefaultPooledObject<>(rosConn);
+    @Throws(Exception::class)
+    override fun makeObject(): PooledObject<ApiConnection> {
+        val rosConn = ApiConnection.connect(rosIp)
+        rosConn.login(rosUser, rosPwd)
+        return DefaultPooledObject(rosConn)
     }
 
-    @Override
-    public void destroyObject(PooledObject<ApiConnection> p) throws Exception {
-        p.getObject().close();
+    @Throws(Exception::class)
+    override fun destroyObject(p: PooledObject<ApiConnection>) {
+        p.getObject().close()
     }
 
-    @Override
-    public boolean validateObject(PooledObject<ApiConnection> p) {
-        return p.getObject().isConnected();
+    override fun validateObject(p: PooledObject<ApiConnection>): Boolean {
+        return p.getObject().isConnected
     }
 
-    @Override
-    public void activateObject(PooledObject<ApiConnection> p) throws Exception {
-
+    @Throws(Exception::class)
+    override fun activateObject(p: PooledObject<ApiConnection>) {
     }
 
-    @Override
-    public void passivateObject(PooledObject<ApiConnection> p) throws Exception {
-
+    @Throws(Exception::class)
+    override fun passivateObject(p: PooledObject<ApiConnection>) {
     }
 }
