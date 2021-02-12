@@ -49,8 +49,8 @@
     <!-- 日志输出级别 -->
     <root level="debug">
         <appender-ref ref="STDOUT" />
-        <appender-ref ref="infoLog" />
-        <appender-ref ref="errorLog" />
+        <!--<appender-ref ref="infoLog" />
+        <appender-ref ref="errorLog" />-->
     </root>
 
 </configuration>
