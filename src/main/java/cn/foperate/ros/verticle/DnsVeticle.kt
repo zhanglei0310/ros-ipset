@@ -59,11 +59,29 @@ class DnsVeticle: AbstractVerticle() {
         val startTime = System.currentTimeMillis()
         val clientSocket = vertx.createDatagramSocket()
         clientSocket.send(packet.data(), remotePort, remote)
-            .subscribe().with {
+            .subscribe().with ({
                 clientSocket.toMulti().subscribe().with { result ->
                     processResult(packet, result, startTime)
                     clientSocket.closeAndForget()
                 }
+            }) {
+                forwardToFallback(packet)
+                clientSocket.closeAndForget()
+            }
+    }
+
+    private fun forwardToFallback(request: DatagramPacket) {
+        val clientSocket = vertx.createDatagramSocket()
+        clientSocket.send(request.data(), 53, "114.114.114.114")
+            .subscribe().with ({
+                clientSocket.toMulti().subscribe().with { response ->
+                    // Fallback服务当作不可信信息，不操作IPset列表
+                    serverSocket.send(response.data(), request.sender().port(), request.sender().host())
+                        .subscribe().with {}
+                    clientSocket.closeAndForget()
+                }
+            }) {
+                clientSocket.closeAndForget()
             }
     }
 
