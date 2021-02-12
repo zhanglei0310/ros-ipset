@@ -23,30 +23,39 @@ class RosVerticle : AbstractVerticle() {
     private lateinit var rosConnPool: GenericObjectPool<ApiConnection>
 
     private fun executeCommandAsMulti(command: String): Multi<Map<String, String>> {
-        var apiConnection: ApiConnection? = null
-        return try {
-            apiConnection = rosConnPool.borrowObject()
-            apiConnection.executeAsMulti(command)
-        } catch (e: Exception) {
-            logger.error("ros command execute error", e)
-            Multi.createFrom().failure(e)
-        } finally {
-            if (apiConnection != null) {
-                rosConnPool.returnObject(apiConnection)
+        return Multi.createFrom().emitter { emitter ->
+            try {
+                val apiConnection = rosConnPool.borrowObject()
+                apiConnection.executeAsMulti(command)
+                    .onItem().invoke { item ->
+                        emitter.emit(item)
+                    }
+                    .onCompletion().invoke {
+                        emitter.complete()
+                        rosConnPool.returnObject(apiConnection)
+                    }
+                    .onFailure().invoke { e ->
+                        log.error("ros command execute error", e)
+                        apiConnection.close()
+                        emitter.fail(e)
+                    }.subscribe().with {  }
+            } catch (e:Exception) {
+                emitter.fail(e)
             }
         }
     }
 
-    private fun loadCache() {
+    private fun loadCache():Uni<Void> {
         val command = "/ip/firewall/address-list/print where list=$rosFwadrKey return address"
-        executeCommandAsMulti(command)
+        return executeCommandAsMulti(command)
             .onItem().transform { map -> map["address"] }
-            .filter{ !it.isNullOrBlank() } // 这里已经保证了不会为空
+            .filter { !it.isNullOrBlank() } // 这里已经保证了不会为空
             .onItem().transform { it as String }
             .collect().asList()
-            .subscribe().with {
-                cache.addAll(it)
-                logger.info("loaded {} records from ros-firewall", it.size)
+            .onItem().transformToUni { list ->
+                cache.addAll(list)
+                log.info("loaded ${list.size} records from ros-firewall")
+                Uni.createFrom().voidItem()
             }
     }
 
@@ -64,8 +73,6 @@ class RosVerticle : AbstractVerticle() {
         config.maxTotal = maxThread
         config.minIdle = maxThread
         rosConnPool = GenericObjectPool(RosApiConnFactory(config()), config)
-
-        loadCache()
     }
 
     private fun sendAddRequest(ip: String, comment: String):Uni<Void> {
@@ -75,7 +82,7 @@ class RosVerticle : AbstractVerticle() {
                 .collect().asList()
                 .subscribe().with{
                     cache.add(ip)
-                    logger.info("$ip add success")
+                    log.info("$ip add success")
                     emitter.complete(null)
                 }
         }
@@ -107,7 +114,7 @@ class RosVerticle : AbstractVerticle() {
                 Multi.createFrom().items(address.stream())
                     .filter {
                         if(cache.contains(it)) {
-                            logger.info("$it in cache hint, skip")
+                            log.info("$it in cache hint, skip")
                             false
                         } else true
                     }.onItem().transformToUniAndMerge { ip ->
@@ -120,11 +127,11 @@ class RosVerticle : AbstractVerticle() {
                     }
             }
 
-        return Uni.createFrom().voidItem()
+        return loadCache()
     }
 
     companion object {
-        private val logger = LoggerFactory.getLogger(RosVerticle::class.java.name)
+        private val log = LoggerFactory.getLogger(RosVerticle::class.java.name)
         val EVENT_ADDRESS: String = RosVerticle::class.java.name
     }
 }

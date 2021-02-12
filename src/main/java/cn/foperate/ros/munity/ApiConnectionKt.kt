@@ -4,6 +4,7 @@ import io.smallrye.mutiny.Multi
 import me.legrange.mikrotik.ApiConnection
 import me.legrange.mikrotik.MikrotikApiException
 import me.legrange.mikrotik.ResultListener
+import javax.net.SocketFactory
 
 fun ApiConnection.executeAsMulti(command: String): Multi<Map<String, String>> {
     return Multi.createFrom().emitter {
@@ -25,3 +26,5 @@ fun ApiConnection.executeAsMulti(command: String): Multi<Map<String, String>> {
         })
     }
 }
+
+fun rapidApiConnection(host:String) = ApiConnection.connect(SocketFactory.getDefault(), host, 8728, 5000)

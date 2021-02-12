@@ -1,5 +1,6 @@
 package cn.foperate.ros.verticle
 
+import cn.foperate.ros.munity.rapidApiConnection
 import io.vertx.core.json.JsonObject
 import org.apache.commons.pool2.PooledObjectFactory
 import me.legrange.mikrotik.ApiConnection
@@ -13,9 +14,9 @@ class RosApiConnFactory(config:JsonObject) : PooledObjectFactory<ApiConnection> 
     private val rosUser = config.getString("rosUser")
     private val rosPwd = config.getString("rosPwd")
 
-    @Throws(Exception::class)
     override fun makeObject(): PooledObject<ApiConnection> {
-        val rosConn = ApiConnection.connect(rosIp)
+        val rosConn = rapidApiConnection(rosIp)
+        rosConn.setTimeout(3000)
         rosConn.login(rosUser, rosPwd)
         return DefaultPooledObject(rosConn)
     }
