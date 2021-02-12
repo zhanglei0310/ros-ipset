@@ -8,7 +8,6 @@ import io.vertx.core.logging.SLF4JLogDelegateFactory
 import io.vertx.kotlin.core.deploymentOptionsOf
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.mutiny.core.Vertx
-import org.apache.commons.lang3.StringUtils
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileInputStream
@@ -19,9 +18,10 @@ object IPset {
     private val logger = LoggerFactory.getLogger(IPset::class.java)
 
     private lateinit var gfwlistPath: String
-    private var rosUser: String? = null
-    private var rosPwd: String? = null
-    private var rosIp: String? = null
+    private lateinit var whitelistPath: String
+    private lateinit var rosUser: String
+    private lateinit var rosPwd: String
+    private lateinit var rosIp: String
     private lateinit var rosFwadrKey: String
     private var rosIdle: Int? = null
     private var maxThread = 8
@@ -46,13 +46,14 @@ object IPset {
         val properties = Properties()
         properties.load(FileInputStream(file))
         gfwlistPath = properties.getProperty("gfwlistPath", "gfwlist.txt")
+        whitelistPath = properties.getProperty("whitelistPath", "")
         rosUser = properties.getProperty("rosUser")
         rosPwd = properties.getProperty("rosPwd")
         rosIp = properties.getProperty("rosIp")
         rosFwadrKey = properties.getProperty("rosFwadrKey")
         remote = properties.getProperty("remote")
         val tmp = properties.getProperty("excludeHosts")
-        if (StringUtils.isNotBlank(tmp)) {
+        if (tmp.isNotBlank()) {
             hosts.addAll(
                 tmp.split(",")
                     .map(String::trim)
@@ -117,8 +118,17 @@ object IPset {
 
         logger.info("RosService init completed")
 
-        DomainUtil.loadBlackList(checkFile(gfwlistPath))
-        DomainUtil.loadWhiteList("")
+        gfwlistPath.split((","))
+            .filter(String::isNotBlank)
+            .forEach {
+                DomainUtil.loadBlackList(checkFile(it))
+            }
+        whitelistPath.split(",")
+            .filter(String::isNotBlank)
+            .forEach {
+                DomainUtil.loadWhiteList(it)
+            }
+
 
         logger.info("GFWList load completed")
 

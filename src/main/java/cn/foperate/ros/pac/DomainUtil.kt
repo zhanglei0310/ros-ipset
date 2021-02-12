@@ -26,25 +26,25 @@ object DomainUtil {
     fun loadWhiteList(fileName: String) {
         if (fileName.isNotBlank()) try {
             val file = File(fileName)
+            log.info("try load white list file $fileName")
             loadWhiteList(file)
         } catch (e:RuntimeException) {}
     }
 
     private fun loadWhiteList(file: File) {
         val reader = file.bufferedReader(Charset.defaultCharset())
-        val records = reader.lines().filter { it.isNotBlank() }.toList()
-        blackList.addAll(records)
+        val records = reader.lines()
+            .filter { it.isNotBlank() }
+            .map { it.substring(5) } .toList()
+        whiteList.addAll(records)
         log.info("${records.size} records of black list loaded")
     }
 
     fun match(name: String):Boolean {
-        val checking = parse(name)
-        checking.forEach {
-            if (whiteList.contains(it)) {
-                return false
-            }
+        if (whiteList.contains(name)) {
+            return false
         }
-        checking.forEach {
+        parse(name).forEach {
             if (blackList.contains(it)) {
                 return true
             }
