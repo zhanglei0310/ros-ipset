@@ -103,7 +103,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>tech.stacktrace.jrodns.Application</mainClass>
+                            <mainClass>cn.foperate.ros.IPset</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
