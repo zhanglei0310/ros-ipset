@@ -1,10 +1,7 @@
 package cn.foperate.ros.pac
 
 import io.vertx.core.logging.LoggerFactory
-import java.io.BufferedInputStream
-import java.io.BufferedReader
 import java.io.File
-import java.io.InputStream
 import java.nio.charset.Charset
 import kotlin.streams.toList
 
@@ -31,7 +28,7 @@ object DomainUtil {
         loadBlackList(file)
     }
 
-    fun loadBlackList(file: File) {
+    private fun loadBlackList(file: File) {
         val reader = file.bufferedReader(Charset.defaultCharset())
         val records = reader.lines().filter { it.isNotBlank() }.toList()
         blackList.addAll(records)
@@ -45,7 +42,7 @@ object DomainUtil {
         } catch (e:RuntimeException) {}
     }
 
-    fun loadWhiteList(file: File) {
+    private fun loadWhiteList(file: File) {
         val reader = file.bufferedReader(Charset.defaultCharset())
         val records = reader.lines().filter { it.isNotBlank() }.toList()
         blackList.addAll(records)

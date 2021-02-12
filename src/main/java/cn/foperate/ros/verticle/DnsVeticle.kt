@@ -1,6 +1,7 @@
 package cn.foperate.ros.verticle
 
 import cn.foperate.ros.IPset
+import cn.foperate.ros.pac.DomainUtil
 import io.smallrye.mutiny.Uni
 import io.smallrye.mutiny.vertx.core.AbstractVerticle
 import io.vertx.core.Context
@@ -21,7 +22,7 @@ class DnsVeticle: AbstractVerticle() {
     private lateinit var remote: String  // upstream服务器地址
     private var remotePort: Int = 53  // upstream服务器端口
     private val excludeHosts = IPset.excludeHosts
-    private val gfwList = GFWList.getInstacne()
+    //private val gfwList = GFWList.getInstacne()
 
     private lateinit var serverSocket:DatagramSocket  // 正在监听的服务端口
     private lateinit var eb: EventBus
@@ -93,7 +94,7 @@ class DnsVeticle: AbstractVerticle() {
         if (question.type == Type.A && aRecordIps.isNotEmpty()) {
             if (excludeHosts.isEmpty() || !excludeHosts.contains(questionName)) {
                 log.info(questionName)
-                /*if (gfwList.match(questionName)) {
+                if (DomainUtil.match(questionName)) {
                     log.debug("gfwlist hint")
                     eb.request<Long>(
                         RosVerticle.EVENT_ADDRESS, jsonObjectOf(
@@ -104,7 +105,7 @@ class DnsVeticle: AbstractVerticle() {
                         val usingTime = System.currentTimeMillis() - finalTime
                         log.debug("gfwlist check task complete, used ${usingTime}ms")
                     }
-                }*/
+                }
             } else {
                 log.debug("hint system excludeHosts, skip gfwlist check")
             }
