@@ -81,9 +81,6 @@ public class GFWList {
         while (true) {
             String line = reader.readLine();
             i++;
-            if (i == 1) {
-                continue;
-            }
             if (line == null) {
                 break;
             }
