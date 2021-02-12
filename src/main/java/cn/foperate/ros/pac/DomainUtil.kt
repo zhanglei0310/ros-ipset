@@ -15,20 +15,8 @@ object DomainUtil {
         blackList.add("apple.com")
         whiteList.add("www.apple.com")
     }*/
-    private fun checkFile(path: String): File {
-        val file = File(path)
-        if (!file.exists() || !file.isFile) {
-            throw RuntimeException("$path not found")
-        }
-        return file
-    }
 
-    fun loadBlackList(fileName: String) {
-        val file = checkFile(fileName)
-        loadBlackList(file)
-    }
-
-    private fun loadBlackList(file: File) {
+    fun loadBlackList(file: File) {
         val reader = file.bufferedReader(Charset.defaultCharset())
         val records = reader.lines().filter { it.isNotBlank() }.toList()
         blackList.addAll(records)
@@ -36,8 +24,8 @@ object DomainUtil {
     }
 
     fun loadWhiteList(fileName: String) {
-        try {
-            val file = checkFile(fileName)
+        if (fileName.isNotBlank()) try {
+            val file = File(fileName)
             loadWhiteList(file)
         } catch (e:RuntimeException) {}
     }

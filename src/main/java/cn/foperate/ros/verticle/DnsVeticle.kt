@@ -12,8 +12,10 @@ import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.mutiny.core.datagram.DatagramPacket
 import io.vertx.mutiny.core.datagram.DatagramSocket
 import io.vertx.mutiny.core.eventbus.EventBus
-import org.xbill.DNS.*
-import tech.stacktrace.jrodns.pac.GFWList
+import org.xbill.DNS.ARecord
+import org.xbill.DNS.Message
+import org.xbill.DNS.Section
+import org.xbill.DNS.Type
 import kotlin.streams.toList
 
 class DnsVeticle: AbstractVerticle() {
@@ -101,10 +103,10 @@ class DnsVeticle: AbstractVerticle() {
                             "domain" to questionName,
                             "address" to aRecordIps
                         )
-                    ).subscribe().with {
+                    ).subscribe().with({
                         val usingTime = System.currentTimeMillis() - finalTime
                         log.debug("gfwlist check task complete, used ${usingTime}ms")
-                    }
+                    }) {}
                 }
             } else {
                 log.debug("hint system excludeHosts, skip gfwlist check")

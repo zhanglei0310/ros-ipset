@@ -8,14 +8,11 @@ import io.vertx.core.logging.SLF4JLogDelegateFactory
 import io.vertx.kotlin.core.deploymentOptionsOf
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.mutiny.core.Vertx
-import org.apache.commons.io.FileUtils
 import org.apache.commons.lang3.StringUtils
 import org.slf4j.LoggerFactory
-import tech.stacktrace.jrodns.pac.GFWList
 import java.io.File
 import java.io.FileInputStream
 import java.io.IOException
-import java.nio.charset.StandardCharsets
 import java.util.*
 
 object IPset {
@@ -101,12 +98,6 @@ object IPset {
         }
     }
 
-    @Throws(IOException::class)
-    private fun readGFWlist(): String? {
-        val file = checkFile(gfwlistPath)
-        return FileUtils.readFileToString(file, StandardCharsets.UTF_8)
-    }
-
     @JvmStatic
     fun main(args:Array<String>) {
 
@@ -124,31 +115,15 @@ object IPset {
 
         logger.info("config file verify success")
 
-        //RosService.init()
-
-        // RosService.clear();
-
-
-        // RosService.clear();
         logger.info("RosService init completed")
 
-        //GFWList.loadRules(readGFWlist())
-        DomainUtil.loadBlackList(gfwlistPath)
+        DomainUtil.loadBlackList(checkFile(gfwlistPath))
+        DomainUtil.loadWhiteList("")
 
         logger.info("GFWList load completed")
 
-        //val udpServer = UdpServer()
-        //udpServer.start()
-
-        logger.info("server started")
-
-        //con.close(); // disconnect from router
-//
-//        GFWList instacne = GFWList.getInstacne();
-//        System.out.println(instacne.match("cdn.ampproject.org."));
-
         val vertx = Vertx.vertx(VertxOptions().setWorkerPoolSize(maxThread))
-        vertx.deployVerticleAndAwait(RosVerticle(), deploymentOptionsOf(
+        vertx.deployVerticle(RosVerticle(), deploymentOptionsOf(
             config = jsonObjectOf(
                 "rosFwadrKey" to rosFwadrKey,
                 "rosIp" to rosIp,
@@ -156,7 +131,10 @@ object IPset {
                 "rosPwd" to rosPwd,
                 "maxThread" to maxThread
             ), worker = true
-        ))
+        )).onFailure().invoke { e ->
+            logger.error(e.message)
+            vertx.close().subscribeAsCompletionStage()
+        }.subscribe().with {  }
         vertx.deployVerticleAndAwait(DnsVeticle(), deploymentOptionsOf(
             config = jsonObjectOf(
                 "remotePort" to remotePort,
@@ -164,5 +142,7 @@ object IPset {
                 "localPort" to localPort
             )
         ))
+
+        logger.info("server started")
     }
 }
