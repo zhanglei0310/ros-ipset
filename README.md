@@ -1,9 +1,13 @@
 # ros-ipset (Original from Jrodns)
 It is a tool original by actck. It is useful for me or any linux/ipset person using RouterOS.
-I fork it to add some other minor functions, cause it was unactived for 2 years. And jrodns is 
-really hard to link to ipset, so the new name.
+I fork it to add some other minor functions, cause it was unactived for 2 years. 
 
-Also I will do a docker job, and put it on github. And...maybe changing is not so minor. Anyway 
+But... I actually refacted the whole project. So, enjoy.
+
+Also I will do a docker job, and put it on github. 
+
+## some useful links
+[blacklist file](https://github.com/Loyalsoldier/v2ray-rules-dat) 
 
 # below is the origin readme
 
@@ -34,7 +38,8 @@ Config file name must be "jrodns.properties".
 
 |key |require|default|desc|
 |:---|  :---:|   :---: |:---|
-|gfwlistPath|1| |gfwlist file path. Value could be file name or absolute path
+|gfwlistPath|1| |gfwlist files path, seperated by comma. Value could be file name or absolute path
+|whitelistPath|0| |white list files, exception from gfwlist.
 |rosIp|1| | ros server ip
 |rosUser|1| | ros router login username
 |rosPwd|1| | ros router login password
