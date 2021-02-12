@@ -46,11 +46,13 @@
         </filter>
     </appender>
 
+    <logger name="io.netty" level="warn" />
+
     <!-- 日志输出级别 -->
     <root level="debug">
         <appender-ref ref="STDOUT" />
-        <appender-ref ref="infoLog" />
-        <appender-ref ref="errorLog" />
+        <!--<appender-ref ref="infoLog" />
+        <appender-ref ref="errorLog" />-->
     </root>
 
 </configuration>
