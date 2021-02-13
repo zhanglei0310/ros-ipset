@@ -141,7 +141,6 @@ object IPset {
                 DomainUtil.loadWhiteList(it)
             }
 
-
         logger.info("GFWList load completed")
 
         val vertx = Vertx.vertx(VertxOptions().setWorkerPoolSize(maxThread))

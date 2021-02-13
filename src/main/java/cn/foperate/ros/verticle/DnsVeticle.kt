@@ -39,7 +39,7 @@ class DnsVeticle: AbstractVerticle() {
                 it.toMulti().subscribe().with { request ->
                     val message = Message(request.data().bytes)
                     val questionName = message.question.name.toString()
-                    log.info(questionName)
+                    log.debug(questionName)
                     if (DomainUtil.match(questionName)){
                         log.debug("gfwlist hint")
                         forwardToRemote(request)
