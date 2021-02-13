@@ -26,8 +26,9 @@ object IPset {
     private var rosIdle: Int? = null
     private var maxThread = 8
     private var localPort: Int = 53
-    private var remote: String? = null
+    private lateinit var remote: String
     private var remotePort: Int = 53
+    private var fallback: String = "223.5.5.5"
 
     private fun checkFile(path: String): File {
         val file = File(path)
@@ -50,6 +51,11 @@ object IPset {
         rosIp = properties.getProperty("rosIp")
         rosFwadrKey = properties.getProperty("rosFwadrKey")
         remote = properties.getProperty("remote")
+
+        val fb = properties.getProperty("fallback")
+        if (!fb.isNullOrBlank()) {
+            fallback = fb
+        }
 
         val maxThreadStr = properties.getProperty("maxThread")
         if (maxThreadStr.isNotBlank()) {
@@ -137,7 +143,8 @@ object IPset {
             config = jsonObjectOf(
                 "remotePort" to remotePort,
                 "remote" to remote,
-                "localPort" to localPort
+                "localPort" to localPort,
+                "fallback" to fallback
             )
         ))
 
