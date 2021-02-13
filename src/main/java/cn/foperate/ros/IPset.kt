@@ -1,5 +1,7 @@
 package cn.foperate.ros
 
+import ch.qos.logback.classic.LoggerContext
+import ch.qos.logback.classic.joran.JoranConfigurator
 import cn.foperate.ros.pac.DomainUtil
 import cn.foperate.ros.verticle.DnsVeticle
 import cn.foperate.ros.verticle.RosVerticle
@@ -13,6 +15,7 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.IOException
 import java.util.*
+
 
 object IPset {
     private val logger = LoggerFactory.getLogger(IPset::class.java)
@@ -95,11 +98,26 @@ object IPset {
         }
     }
 
-    @JvmStatic
-    fun main(args:Array<String>) {
-
+    private fun setLogger() {
         System.setProperty("vertx.logger-delegate-factory-class-name",
             SLF4JLogDelegateFactory::class.java.name)
+
+        // if logback.xml in current work dir, use it
+        try {
+            val file = checkFile("logback.xml")
+            val lc = LoggerFactory.getILoggerFactory() as LoggerContext
+
+            val configurator = JoranConfigurator()
+            configurator.context = lc
+            lc.reset()
+            configurator.doConfigure(file)
+        } catch (e:Exception) {}
+
+    }
+
+    @JvmStatic
+    fun main(args:Array<String>) {
+        setLogger()
 
         var configFilePath = "jrodns.properties"
         if (args.isNotEmpty()) {
