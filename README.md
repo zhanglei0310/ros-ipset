@@ -7,6 +7,9 @@ But... I actually refacted the whole project. So, enjoy.
 Also I will do a docker job, and put it on github. 
 
 ## some useful links
+
+[中文说明](README.zh.md)
+
 [blacklist file](https://github.com/Loyalsoldier/v2ray-rules-dat) 
 
 # below is the origin readme
