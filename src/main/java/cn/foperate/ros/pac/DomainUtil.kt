@@ -1,6 +1,6 @@
 package cn.foperate.ros.pac
 
-import io.vertx.core.logging.LoggerFactory
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.nio.charset.Charset
 import kotlin.streams.toList
@@ -41,10 +41,13 @@ object DomainUtil {
     }
 
     fun match(name: String):Boolean {
-        if (whiteList.contains(name)) {
+        val checkName = if (name.endsWith(".")) {
+            name.substring(0, name.length-1)
+        } else name
+        if (whiteList.contains(checkName)) {
             return false
         }
-        parse(name).forEach {
+        parse(checkName).forEach {
             if (blackList.contains(it)) {
                 return true
             }

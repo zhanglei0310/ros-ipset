@@ -6,13 +6,13 @@
 
     <groupId>me.foperate</groupId>
     <artifactId>ros-ipset</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0.1</version>
 
     <properties>
-        <kotlin.version>1.3.30</kotlin.version>
+        <kotlin.version>1.4.10</kotlin.version>
         <kotlin.compiler.jvmTarget>1.8</kotlin.compiler.jvmTarget>
-        <mutiny.version>1.4.0</mutiny.version>
-        <vertx.version>3.9.5</vertx.version>
+        <mutiny.version>2.0.0</mutiny.version>
+        <vertx.version>4.0.0</vertx.version>
     </properties>
 
     <dependencies>

@@ -1,5 +1,7 @@
 package cn.foperate.ros
 
+import ch.qos.logback.classic.LoggerContext
+import ch.qos.logback.classic.joran.JoranConfigurator
 import cn.foperate.ros.pac.DomainUtil
 import cn.foperate.ros.verticle.DnsVeticle
 import cn.foperate.ros.verticle.RosVerticle
@@ -14,6 +16,7 @@ import java.io.FileInputStream
 import java.io.IOException
 import java.util.*
 
+
 object IPset {
     private val logger = LoggerFactory.getLogger(IPset::class.java)
 
@@ -26,10 +29,9 @@ object IPset {
     private var rosIdle: Int? = null
     private var maxThread = 8
     private var localPort: Int = 53
-    private var remote: String? = null
+    private lateinit var remote: String
     private var remotePort: Int = 53
-
-    lateinit var excludeHosts: HashSet<String>
+    private var fallback: String = "223.5.5.5"
 
     private fun checkFile(path: String): File {
         val file = File(path)
@@ -41,7 +43,7 @@ object IPset {
 
     @Throws(IOException::class)
     private fun readProp(configFilePath: String) {
-        val hosts = mutableListOf<String>()
+
         val file = checkFile(configFilePath)
         val properties = Properties()
         properties.load(FileInputStream(file))
@@ -52,15 +54,12 @@ object IPset {
         rosIp = properties.getProperty("rosIp")
         rosFwadrKey = properties.getProperty("rosFwadrKey")
         remote = properties.getProperty("remote")
-        val tmp = properties.getProperty("excludeHosts")
-        if (tmp.isNotBlank()) {
-            hosts.addAll(
-                tmp.split(",")
-                    .map(String::trim)
-                    .filter(String::isNotBlank)
-            )
+
+        val fb = properties.getProperty("fallback")
+        if (!fb.isNullOrBlank()) {
+            fallback = fb
         }
-        excludeHosts = hosts.toHashSet()
+
         val maxThreadStr = properties.getProperty("maxThread")
         if (maxThreadStr.isNotBlank()) {
             maxThread = Integer.valueOf(maxThreadStr)
@@ -99,13 +98,26 @@ object IPset {
         }
     }
 
-    @JvmStatic
-    fun main(args:Array<String>) {
-
+    private fun setLogger() {
         System.setProperty("vertx.logger-delegate-factory-class-name",
             SLF4JLogDelegateFactory::class.java.name)
-        //InternalLoggerFactory.setDefaultFactory(SLF4JLogDelegateFactory::INSTANCE)
-        io.vertx.core.logging.LoggerFactory.initialise()
+
+        // if logback.xml in current work dir, use it
+        try {
+            val file = checkFile("logback.xml")
+            val lc = LoggerFactory.getILoggerFactory() as LoggerContext
+
+            val configurator = JoranConfigurator()
+            configurator.context = lc
+            lc.reset()
+            configurator.doConfigure(file)
+        } catch (e:Exception) {}
+
+    }
+
+    @JvmStatic
+    fun main(args:Array<String>) {
+        setLogger()
 
         var configFilePath = "jrodns.properties"
         if (args.isNotEmpty()) {
@@ -129,7 +141,6 @@ object IPset {
                 DomainUtil.loadWhiteList(it)
             }
 
-
         logger.info("GFWList load completed")
 
         val vertx = Vertx.vertx(VertxOptions().setWorkerPoolSize(maxThread))
@@ -149,7 +160,8 @@ object IPset {
             config = jsonObjectOf(
                 "remotePort" to remotePort,
                 "remote" to remote,
-                "localPort" to localPort
+                "localPort" to localPort,
+                "fallback" to fallback
             )
         ))
 

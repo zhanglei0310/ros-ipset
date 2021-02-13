@@ -15,7 +15,12 @@ fun ApiConnection.executeAsMulti(command: String): Multi<Map<String, String>> {
             }
 
             override fun error(p0: MikrotikApiException) {
-                if (!completed) it.fail(p0)
+                // 已经加入某条记录的错误直接忽略掉。这里假设每次只会加入一条记录
+                if (p0.message!!.contains("already have such entry")) {
+                    it.complete()
+                    completed = true
+                }
+                else if (!completed) it.fail(p0)
             }
 
             override fun completed() {
