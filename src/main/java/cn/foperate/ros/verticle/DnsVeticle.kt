@@ -1,17 +1,16 @@
 package cn.foperate.ros.verticle
 
-import cn.foperate.ros.IPset
 import cn.foperate.ros.pac.DomainUtil
 import io.smallrye.mutiny.Uni
 import io.smallrye.mutiny.vertx.core.AbstractVerticle
 import io.vertx.core.Context
 import io.vertx.core.Vertx
-import io.vertx.core.logging.LoggerFactory
 import io.vertx.kotlin.core.datagram.datagramSocketOptionsOf
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.mutiny.core.datagram.DatagramPacket
 import io.vertx.mutiny.core.datagram.DatagramSocket
 import io.vertx.mutiny.core.eventbus.EventBus
+import org.slf4j.LoggerFactory
 import org.xbill.DNS.ARecord
 import org.xbill.DNS.Message
 import org.xbill.DNS.Section
@@ -23,7 +22,6 @@ class DnsVeticle: AbstractVerticle() {
     private var localPort: Int = 53  // DNS服务监听的端口
     private lateinit var remote: String  // upstream服务器地址
     private var remotePort: Int = 53  // upstream服务器端口
-    private val excludeHosts = IPset.excludeHosts
     //private val gfwList = GFWList.getInstacne()
 
     private lateinit var serverSocket:DatagramSocket  // 正在监听的服务端口
@@ -112,22 +110,18 @@ class DnsVeticle: AbstractVerticle() {
         log.debug("reply complete, used ${finalTime - time}ms")
 
         if (question.type == Type.A && aRecordIps.isNotEmpty()) {
-            if (excludeHosts.isEmpty() || !excludeHosts.contains(questionName)) {
-                log.info(questionName)
-                if (DomainUtil.match(questionName)) {
-                    log.debug("gfwlist hint")
-                    eb.request<Long>(
-                        RosVerticle.EVENT_ADDRESS, jsonObjectOf(
-                            "domain" to questionName,
-                            "address" to aRecordIps
-                        )
-                    ).subscribe().with({
-                        val usingTime = System.currentTimeMillis() - finalTime
-                        log.debug("gfwlist check task complete, used ${usingTime}ms")
-                    }) {}
-                }
-            } else {
-                log.debug("hint system excludeHosts, skip gfwlist check")
+            log.info(questionName)
+            if (DomainUtil.match(questionName)) {
+                log.debug("gfwlist hint")
+                eb.request<Long>(
+                    RosVerticle.EVENT_ADDRESS, jsonObjectOf(
+                        "domain" to questionName,
+                        "address" to aRecordIps
+                    )
+                ).subscribe().with({
+                    val usingTime = System.currentTimeMillis() - finalTime
+                    log.debug("gfwlist check task complete, used ${usingTime}ms")
+                }) {}
             }
         }
     }

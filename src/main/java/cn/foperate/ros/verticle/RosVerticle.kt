@@ -4,13 +4,11 @@ import cn.foperate.ros.munity.executeAsMulti
 import io.smallrye.mutiny.Multi
 import io.smallrye.mutiny.Uni
 import io.smallrye.mutiny.vertx.core.AbstractVerticle
-import io.vertx.core.Context
-import io.vertx.core.Vertx
 import io.vertx.core.json.JsonObject
-import io.vertx.core.logging.LoggerFactory
 import me.legrange.mikrotik.ApiConnection
 import org.apache.commons.pool2.impl.GenericObjectPool
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig
+import org.slf4j.LoggerFactory
 
 class RosVerticle : AbstractVerticle() {
     private lateinit var rosFwadrKey: String
@@ -59,22 +57,6 @@ class RosVerticle : AbstractVerticle() {
             }
     }
 
-    override fun init(vertx: Vertx, context: Context) {
-        super.init(vertx, context)
-
-        maxThread = config().getInteger("maxThread")
-        rosIp = config().getString("rosIp")
-        rosUser = config().getString("rosUser")
-        rosPwd = config().getString("rosPwd")
-        rosFwadrKey = config().getString("rosFwadrKey")
-
-        val config = GenericObjectPoolConfig<ApiConnection>()
-        config.maxIdle = maxThread
-        config.maxTotal = maxThread
-        config.minIdle = maxThread
-        rosConnPool = GenericObjectPool(RosApiConnFactory(config()), config)
-    }
-
     private fun sendAddRequest(ip: String, comment: String):Uni<Void> {
         val command = "/ip/firewall/address-list/add list=$rosFwadrKey address=$ip comment=$comment"
         return Uni.createFrom().emitter { emitter ->
@@ -104,6 +86,19 @@ class RosVerticle : AbstractVerticle() {
     }
 
     override fun asyncStart(): Uni<Void> {
+
+        maxThread = config().getInteger("maxThread")
+        rosIp = config().getString("rosIp")
+        rosUser = config().getString("rosUser")
+        rosPwd = config().getString("rosPwd")
+        rosFwadrKey = config().getString("rosFwadrKey")
+
+        val config = GenericObjectPoolConfig<ApiConnection>()
+        config.maxIdle = maxThread
+        config.maxTotal = maxThread
+        config.minIdle = maxThread
+        rosConnPool = GenericObjectPool(RosApiConnFactory(config()), config)
+
         val eb = vertx.eventBus()
 
         eb.localConsumer<JsonObject>(EVENT_ADDRESS).toMulti()
@@ -123,7 +118,7 @@ class RosVerticle : AbstractVerticle() {
                     }
                     .collect().last()
                     .subscribe().with {
-                        message.replyAndForget(System.currentTimeMillis())
+                        message.reply(System.currentTimeMillis())
                     }
             }
 

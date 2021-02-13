@@ -29,8 +29,6 @@ object IPset {
     private var remote: String? = null
     private var remotePort: Int = 53
 
-    lateinit var excludeHosts: HashSet<String>
-
     private fun checkFile(path: String): File {
         val file = File(path)
         if (!file.exists() || !file.isFile) {
@@ -41,7 +39,7 @@ object IPset {
 
     @Throws(IOException::class)
     private fun readProp(configFilePath: String) {
-        val hosts = mutableListOf<String>()
+
         val file = checkFile(configFilePath)
         val properties = Properties()
         properties.load(FileInputStream(file))
@@ -52,15 +50,7 @@ object IPset {
         rosIp = properties.getProperty("rosIp")
         rosFwadrKey = properties.getProperty("rosFwadrKey")
         remote = properties.getProperty("remote")
-        val tmp = properties.getProperty("excludeHosts")
-        if (tmp.isNotBlank()) {
-            hosts.addAll(
-                tmp.split(",")
-                    .map(String::trim)
-                    .filter(String::isNotBlank)
-            )
-        }
-        excludeHosts = hosts.toHashSet()
+
         val maxThreadStr = properties.getProperty("maxThread")
         if (maxThreadStr.isNotBlank()) {
             maxThread = Integer.valueOf(maxThreadStr)
@@ -104,8 +94,6 @@ object IPset {
 
         System.setProperty("vertx.logger-delegate-factory-class-name",
             SLF4JLogDelegateFactory::class.java.name)
-        //InternalLoggerFactory.setDefaultFactory(SLF4JLogDelegateFactory::INSTANCE)
-        io.vertx.core.logging.LoggerFactory.initialise()
 
         var configFilePath = "jrodns.properties"
         if (args.isNotEmpty()) {
