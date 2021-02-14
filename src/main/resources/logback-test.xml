@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <configuration debug="true">
-    <jmxConfigurator/>
     <!-- 最大保存历史日志天数 -->
     <property name="LOG_MAX_HISTORY" value="4" />
 
