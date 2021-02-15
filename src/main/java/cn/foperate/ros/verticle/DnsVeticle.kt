@@ -5,15 +5,15 @@ import io.smallrye.mutiny.Uni
 import io.smallrye.mutiny.vertx.core.AbstractVerticle
 import io.vertx.kotlin.core.datagram.datagramSocketOptionsOf
 import io.vertx.kotlin.core.json.jsonObjectOf
+import io.vertx.mutiny.core.buffer.Buffer
 import io.vertx.mutiny.core.datagram.DatagramPacket
 import io.vertx.mutiny.core.datagram.DatagramSocket
 import io.vertx.mutiny.core.eventbus.EventBus
 import org.slf4j.LoggerFactory
-import org.xbill.DNS.ARecord
-import org.xbill.DNS.Message
-import org.xbill.DNS.Section
-import org.xbill.DNS.Type
+import org.xbill.DNS.*
+import java.net.InetAddress
 import kotlin.streams.toList
+
 
 class DnsVeticle: AbstractVerticle() {
 
@@ -21,6 +21,7 @@ class DnsVeticle: AbstractVerticle() {
     private lateinit var remote: String  // upstream服务器地址
     private var remotePort: Int = 53  // upstream服务器端口
     private lateinit var fallback: String
+    private lateinit var blockAddress: InetAddress
 
     private lateinit var serverSocket:DatagramSocket  // 正在监听的服务端口
     private lateinit var eb: EventBus
@@ -30,23 +31,32 @@ class DnsVeticle: AbstractVerticle() {
         remote = config().getString("remote")
         remotePort = config().getInteger("remotePort", remotePort)
         fallback = config().getString("fallback")
+        val block = config().getString("blockAddress")
+        blockAddress = InetAddress.getByName(block)
 
         this.eb = vertx.eventBus()
         val serverSocket = vertx.createDatagramSocket(datagramSocketOptionsOf())
         serverSocket.listen(localPort, "0.0.0.0")
-            .subscribe().with {
-                this.serverSocket = it
-                it.toMulti().subscribe().with { request ->
+            .subscribe().with { ss ->
+                this.serverSocket = ss
+                ss.toMulti().subscribe().with { request ->
                     val message = Message(request.data().bytes)
                     val questionName = message.question.name.toString()
+                    val questionType = message.question.type
                     log.debug(questionName)
-                    if (DomainUtil.match(questionName)){
-                        log.debug("gfwlist hint")
-                        forwardToRemote(request)
-                    } else {
-                        forwardToFallback(request)
+                    if (questionType==Type.A) when {
+                        DomainUtil.match(questionName) -> {
+                            log.debug("gfwlist hint")
+                            forwardToRemote(request)
+                        }
+                        DomainUtil.matchBlock(questionName) -> {
+                            log.debug("adBlock matched")
+                            val reply = blockMessage(message)
+                            ss.send(Buffer.buffer(reply), request.sender().port(), request.sender().host())
+                                .subscribe().with { }
+                        }
+                        else -> forwardToFallback(request)
                     }
-
                 }
             }
 
@@ -125,6 +135,20 @@ class DnsVeticle: AbstractVerticle() {
                 log.debug("gfwlist check task complete, used ${usingTime}ms")
             }) {}
         }
+    }
+
+    /***
+     * Make the query result to blockAddress and expired in 1 day.
+     */
+    fun blockMessage(request:Message):ByteArray {
+        val response = Message(request.header.id)
+        response.header.setFlag(Flags.QR.toInt())
+        response.addRecord(request.question, Section.QUESTION)
+        val questionName = request.question.name
+
+        response.addRecord(ARecord(questionName, DClass.IN, 86400, blockAddress), Section.ANSWER)
+
+        return response.toWire()
     }
 
     companion object {
