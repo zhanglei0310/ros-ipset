@@ -33,6 +33,9 @@ object IPset {
     private var remotePort: Int = 53
     private var fallback: String = "223.5.5.5"
 
+    private lateinit var adblockPath: String
+    private var blockAddress: String = "224.0.0.1"
+
     private fun checkFile(path: String): File {
         val file = File(path)
         if (!file.exists() || !file.isFile) {
@@ -49,6 +52,8 @@ object IPset {
         properties.load(FileInputStream(file))
         gfwlistPath = properties.getProperty("gfwlistPath", "gfwlist.txt")
         whitelistPath = properties.getProperty("whitelistPath", "")
+        adblockPath = properties.getProperty("adblockPath", "")
+        blockAddress = properties.getProperty("blockAddress", blockAddress)
         rosUser = properties.getProperty("rosUser")
         rosPwd = properties.getProperty("rosPwd")
         rosIp = properties.getProperty("rosIp")
@@ -61,17 +66,17 @@ object IPset {
         }
 
         val maxThreadStr = properties.getProperty("maxThread")
-        if (maxThreadStr.isNotBlank()) {
+        if (!maxThreadStr.isNullOrBlank()) {
             maxThread = Integer.valueOf(maxThreadStr)
         }
 
         val localPortStr = properties.getProperty("localPort")
-        if (localPortStr.isNotBlank()) {
+        if (!localPortStr.isNullOrBlank()) {
             localPort = Integer.valueOf(localPortStr)
         }
 
         val remotePortStr = properties.getProperty("remotePort")
-        if (remotePortStr.isNotBlank()) {
+        if (!remotePortStr.isNullOrBlank()) {
             remotePort = Integer.valueOf(remotePortStr)
         }
 
@@ -139,6 +144,11 @@ object IPset {
             .filter(String::isNotBlank)
             .forEach {
                 DomainUtil.loadWhiteList(it)
+            }
+        adblockPath.split(",")
+            .filter(String::isNotBlank)
+            .forEach {
+                DomainUtil.loadAdblockList(it)
             }
 
         logger.info("GFWList load completed")

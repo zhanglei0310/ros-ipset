@@ -5,15 +5,14 @@ import io.smallrye.mutiny.Uni
 import io.smallrye.mutiny.vertx.core.AbstractVerticle
 import io.vertx.kotlin.core.datagram.datagramSocketOptionsOf
 import io.vertx.kotlin.core.json.jsonObjectOf
+import io.vertx.mutiny.core.buffer.Buffer
 import io.vertx.mutiny.core.datagram.DatagramPacket
 import io.vertx.mutiny.core.datagram.DatagramSocket
 import io.vertx.mutiny.core.eventbus.EventBus
 import org.slf4j.LoggerFactory
-import org.xbill.DNS.ARecord
-import org.xbill.DNS.Message
-import org.xbill.DNS.Section
-import org.xbill.DNS.Type
+import org.xbill.DNS.*
 import kotlin.streams.toList
+
 
 class DnsVeticle: AbstractVerticle() {
 
@@ -34,19 +33,26 @@ class DnsVeticle: AbstractVerticle() {
         this.eb = vertx.eventBus()
         val serverSocket = vertx.createDatagramSocket(datagramSocketOptionsOf())
         serverSocket.listen(localPort, "0.0.0.0")
-            .subscribe().with {
-                this.serverSocket = it
-                it.toMulti().subscribe().with { request ->
+            .subscribe().with { ss ->
+                this.serverSocket = ss
+                ss.toMulti().subscribe().with { request ->
                     val message = Message(request.data().bytes)
                     val questionName = message.question.name.toString()
+                    val questionType = message.question.type
                     log.debug(questionName)
-                    if (DomainUtil.match(questionName)){
-                        log.debug("gfwlist hint")
-                        forwardToRemote(request)
-                    } else {
-                        forwardToFallback(request)
+                    if (questionType==Type.A) when {
+                        DomainUtil.match(questionName) -> {
+                            log.debug("gfwlist hint")
+                            forwardToRemote(request)
+                        }
+                        DomainUtil.matchBlock(questionName) -> {
+                            log.debug("adBlock matched")
+                            val reply = blockMessage(message)
+                            ss.send(Buffer.buffer(reply), request.sender().port(), request.sender().host())
+                                .subscribe().with { }
+                        }
+                        else -> forwardToFallback(request)
                     }
-
                 }
             }
 
@@ -125,6 +131,17 @@ class DnsVeticle: AbstractVerticle() {
                 log.debug("gfwlist check task complete, used ${usingTime}ms")
             }) {}
         }
+    }
+
+    fun blockMessage(request:Message):ByteArray {
+        val response = Message(request.header.id)
+        response.addRecord(request.question, Section.QUESTION)
+        val questionName = request.question.name
+
+        // Add answers as needed
+        response.addRecord(Record.fromString(questionName, Type.A, DClass.IN, 86400, "224.0.0.1", Name.empty), Section.ANSWER)
+
+        return response.toWire()
     }
 
     companion object {

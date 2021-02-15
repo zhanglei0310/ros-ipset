@@ -9,6 +9,7 @@ object DomainUtil {
     private val log = LoggerFactory.getLogger(DomainUtil::class.java)
     private val blackList = HashSet<String>()
     private val whiteList = HashSet<String>()
+    private val adblockList = HashSet<String>()
 
     /*init {
         blackList.add("google.com")
@@ -38,6 +39,23 @@ object DomainUtil {
             .map { it.substring(5) } .toList()
         whiteList.addAll(records)
         log.info("${records.size} records of black list loaded")
+    }
+
+    fun loadAdblockList(fileName: String) {
+        if (fileName.isNotBlank()) try {
+            val file = File(fileName)
+            log.info("try load adblock list file $fileName")
+            loadAdblockList(file)
+        } catch (e:java.lang.RuntimeException) {}
+    }
+
+    private fun loadAdblockList(file:File) {
+        val reader = file.bufferedReader(Charset.defaultCharset())
+        val records = reader.lines()
+            .filter { it.isNotBlank() }
+            .toList()
+        adblockList.addAll(records)
+        log.info("${records.size} records of adblock list loaded")
     }
 
     fun match(name: String):Boolean {
@@ -77,5 +95,17 @@ object DomainUtil {
             val sec = group["sec"]?.value?.toInt() ?: 0
             hour*3600 + min*60 + sec
         } ?: 24*3600
+    }
+
+    fun matchBlock(name: String): Boolean {
+        val checkName = if (name.endsWith(".")) {
+            name.substring(0, name.length-1)
+        } else name
+        parse(checkName).forEach {
+            if (adblockList.contains(it)) {
+                return true
+            }
+        }
+        return false
     }
 }
