@@ -66,4 +66,16 @@ object DomainUtil {
         } while (index>0)
         return result.toList()
     }
+
+    private val regex = Regex("^((?<hour>\\d+)h)?((?<min>\\d+)m)?((?<sec>\\d+)s)?$")
+
+    fun getTimeout(timeoutValue:String):Int {
+        return regex.matchEntire(timeoutValue)?.let {
+            val group = it.groups
+            val hour = group["hour"]?.value?.toInt() ?: 0
+            val min = group["min"]?.value?.toInt() ?: 0
+            val sec = group["sec"]?.value?.toInt() ?: 0
+            hour*3600 + min*60 + sec
+        } ?: 24*3600
+    }
 }
