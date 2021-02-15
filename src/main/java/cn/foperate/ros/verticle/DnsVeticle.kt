@@ -133,12 +133,15 @@ class DnsVeticle: AbstractVerticle() {
         }
     }
 
+    /***
+     * I tried to make up a fake dns response. it worked with nslookup, but ROS denied it.
+     * If anyone knew how to make it acceptable by ROS, please tell me. thx.
+     */
     fun blockMessage(request:Message):ByteArray {
         val response = Message(request.header.id)
         response.addRecord(request.question, Section.QUESTION)
         val questionName = request.question.name
 
-        // Add answers as needed
         response.addRecord(Record.fromString(questionName, Type.A, DClass.IN, 86400, "224.0.0.1", Name.empty), Section.ANSWER)
 
         return response.toWire()
