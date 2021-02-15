@@ -63,8 +63,6 @@ class RosVerticle : AbstractVerticle() {
             .collect().asList()
             .onItem().transformToUni { list ->
                 log.info("loaded ${list.size} records from ros-firewall")
-                val day = System.currentTimeMillis() + 24*3600*1000
-                log.info(day.toString())
                 Uni.createFrom().voidItem()
             }
     }

@@ -11,6 +11,7 @@ import io.vertx.mutiny.core.datagram.DatagramSocket
 import io.vertx.mutiny.core.eventbus.EventBus
 import org.slf4j.LoggerFactory
 import org.xbill.DNS.*
+import java.net.InetAddress
 import kotlin.streams.toList
 
 
@@ -20,6 +21,7 @@ class DnsVeticle: AbstractVerticle() {
     private lateinit var remote: String  // upstream服务器地址
     private var remotePort: Int = 53  // upstream服务器端口
     private lateinit var fallback: String
+    private lateinit var blockAddress: InetAddress
 
     private lateinit var serverSocket:DatagramSocket  // 正在监听的服务端口
     private lateinit var eb: EventBus
@@ -29,6 +31,8 @@ class DnsVeticle: AbstractVerticle() {
         remote = config().getString("remote")
         remotePort = config().getInteger("remotePort", remotePort)
         fallback = config().getString("fallback")
+        val block = config().getString("blockAddress")
+        blockAddress = InetAddress.getByName(block)
 
         this.eb = vertx.eventBus()
         val serverSocket = vertx.createDatagramSocket(datagramSocketOptionsOf())
@@ -134,15 +138,15 @@ class DnsVeticle: AbstractVerticle() {
     }
 
     /***
-     * I tried to make up a fake dns response. it worked with nslookup, but ROS denied it.
-     * If anyone knew how to make it acceptable by ROS, please tell me. thx.
+     * Make the query result to blockAddress and expired in 1 day.
      */
     fun blockMessage(request:Message):ByteArray {
         val response = Message(request.header.id)
+        response.header.setFlag(Flags.QR.toInt())
         response.addRecord(request.question, Section.QUESTION)
         val questionName = request.question.name
 
-        response.addRecord(Record.fromString(questionName, Type.A, DClass.IN, 86400, "224.0.0.1", Name.empty), Section.ANSWER)
+        response.addRecord(ARecord(questionName, DClass.IN, 86400, blockAddress), Section.ANSWER)
 
         return response.toWire()
     }

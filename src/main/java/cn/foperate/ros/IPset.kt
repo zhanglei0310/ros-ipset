@@ -171,7 +171,8 @@ object IPset {
                 "remotePort" to remotePort,
                 "remote" to remote,
                 "localPort" to localPort,
-                "fallback" to fallback
+                "fallback" to fallback,
+                "blockAddress" to blockAddress
             )
         ))
 
