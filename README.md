@@ -10,6 +10,8 @@ Also I will do a docker job, and put it on github.
 
 [中文说明](README.zh.md)
 
+[docker format](https://hub.docker.com/r/whitemay/ros-ipset)
+
 [blacklist file](https://github.com/Loyalsoldier/v2ray-rules-dat) 
 
 # below is the origin readme
@@ -43,6 +45,8 @@ Config file name must be "jrodns.properties".
 |:---|  :---:|   :---: |:---|
 |gfwlistPath|1| |gfwlist files path, seperated by comma. Value could be file name or absolute path
 |whitelistPath|0| |white list files, exception from gfwlist.
+|adblockPath|0| |ad-block list files. domains will be resolve to block-address
+|blockAddress|0|224.0.0.1|the address for domains in ad-block list 
 |rosIp|1| | ros server ip
 |rosUser|1| | ros router login username
 |rosPwd|1| | ros router login password
