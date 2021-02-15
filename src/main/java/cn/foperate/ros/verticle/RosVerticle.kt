@@ -1,6 +1,7 @@
 package cn.foperate.ros.verticle
 
 import cn.foperate.ros.munity.executeAsMulti
+import cn.foperate.ros.munity.returnWithException
 import cn.foperate.ros.pac.DomainUtil
 import com.google.common.cache.CacheBuilder
 import io.smallrye.mutiny.Multi
@@ -26,6 +27,7 @@ class RosVerticle : AbstractVerticle() {
     private lateinit var rosConnPool: GenericObjectPool<ApiConnection>
 
     private fun executeCommandAsMulti(command: String): Multi<Map<String, String>> {
+        // 二度封装Multi有两个原因：borrowObject本身有可能失败，以及考虑在出现错误时关闭api连接
         return Multi.createFrom().emitter { emitter ->
             try {
                 val apiConnection = rosConnPool.borrowObject()
@@ -39,7 +41,7 @@ class RosVerticle : AbstractVerticle() {
                     }
                     .onFailure().invoke { e ->
                         log.error("ros command execute error", e)
-                        apiConnection.close()
+                        apiConnection.returnWithException(rosConnPool, e)
                         emitter.fail(e)
                     }.subscribe().with {  }
             } catch (e:Exception) {
@@ -81,7 +83,7 @@ class RosVerticle : AbstractVerticle() {
         }
     }
 
-    fun clear() {
+    /*fun clear() {
         val commandQuery = "/ip/firewall/address-list/print where list=$rosFwadrKey return .id"
         executeCommandAsMulti(commandQuery)
             .onItem().transform {
@@ -94,7 +96,7 @@ class RosVerticle : AbstractVerticle() {
                     .collect().asList()
                     .subscribe().with({}){}
             }
-    }
+    }*/
 
     override fun asyncStart(): Uni<Void> {
 
