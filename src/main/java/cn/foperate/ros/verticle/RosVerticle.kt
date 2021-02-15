@@ -1,6 +1,9 @@
 package cn.foperate.ros.verticle
 
 import cn.foperate.ros.munity.executeAsMulti
+import cn.foperate.ros.munity.returnWithException
+import cn.foperate.ros.pac.DomainUtil
+import com.google.common.cache.CacheBuilder
 import io.smallrye.mutiny.Multi
 import io.smallrye.mutiny.Uni
 import io.smallrye.mutiny.vertx.core.AbstractVerticle
@@ -9,6 +12,7 @@ import me.legrange.mikrotik.ApiConnection
 import org.apache.commons.pool2.impl.GenericObjectPool
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig
 import org.slf4j.LoggerFactory
+import java.util.concurrent.TimeUnit
 
 class RosVerticle : AbstractVerticle() {
     private lateinit var rosFwadrKey: String
@@ -17,10 +21,13 @@ class RosVerticle : AbstractVerticle() {
     private lateinit var rosUser: String
     private lateinit var rosPwd: String
 
-    private val cache = HashSet<String>()
+    private val cache = CacheBuilder.newBuilder()
+        .expireAfterWrite(24, TimeUnit.HOURS)
+        .build<String, Long>()
     private lateinit var rosConnPool: GenericObjectPool<ApiConnection>
 
     private fun executeCommandAsMulti(command: String): Multi<Map<String, String>> {
+        // 二度封装Multi有两个原因：borrowObject本身有可能失败，以及考虑在出现错误时关闭api连接
         return Multi.createFrom().emitter { emitter ->
             try {
                 val apiConnection = rosConnPool.borrowObject()
@@ -34,7 +41,7 @@ class RosVerticle : AbstractVerticle() {
                     }
                     .onFailure().invoke { e ->
                         log.error("ros command execute error", e)
-                        apiConnection.close()
+                        apiConnection.returnWithException(rosConnPool, e)
                         emitter.fail(e)
                     }.subscribe().with {  }
             } catch (e:Exception) {
@@ -44,33 +51,39 @@ class RosVerticle : AbstractVerticle() {
     }
 
     private fun loadCache():Uni<Void> {
-        val command = "/ip/firewall/address-list/print where list=$rosFwadrKey return address"
+        val command = "/ip/firewall/address-list/print where list=$rosFwadrKey return address,timeout"
         return executeCommandAsMulti(command)
-            .onItem().transform { map -> map["address"] }
-            .filter { !it.isNullOrBlank() } // 这里已经保证了不会为空
-            .onItem().transform { it as String }
+            .onItem().transform {
+                val timeout = if (it.containsKey("timeout")) {
+                    DomainUtil.getTimeout(it["timeout"]!!)
+                } else 24*3600
+                cache.put(it["address"]!!, System.currentTimeMillis() + timeout*1000)
+                it["address"]!!
+            }
             .collect().asList()
             .onItem().transformToUni { list ->
-                cache.addAll(list)
                 log.info("loaded ${list.size} records from ros-firewall")
+                log.info(cache.getIfPresent("123.118.97.191").toString())
+                val day = System.currentTimeMillis() + 24*3600*1000
+                log.info(day.toString())
                 Uni.createFrom().voidItem()
             }
     }
 
     private fun sendAddRequest(ip: String, comment: String):Uni<Void> {
-        val command = "/ip/firewall/address-list/add list=$rosFwadrKey address=$ip comment=$comment"
+        val command = "/ip/firewall/address-list/add list=$rosFwadrKey address=$ip timeout=24h comment=$comment"
         return Uni.createFrom().emitter { emitter ->
             executeCommandAsMulti(command)
                 .collect().asList()
                 .subscribe().with{
-                    cache.add(ip)
+                    cache.put(ip, System.currentTimeMillis() + 24*3600*1000)
                     log.info("$ip add success")
                     emitter.complete(null)
                 }
         }
     }
 
-    fun clear() {
+    /*fun clear() {
         val commandQuery = "/ip/firewall/address-list/print where list=$rosFwadrKey return .id"
         executeCommandAsMulti(commandQuery)
             .onItem().transform {
@@ -83,7 +96,7 @@ class RosVerticle : AbstractVerticle() {
                     .collect().asList()
                     .subscribe().with({}){}
             }
-    }
+    }*/
 
     override fun asyncStart(): Uni<Void> {
 
@@ -108,10 +121,10 @@ class RosVerticle : AbstractVerticle() {
                 val address = jsonObject.getJsonArray("address")
                 Multi.createFrom().items(address.stream())
                     .filter {
-                        if(cache.contains(it)) {
-                            log.info("$it in cache hint, skip")
-                            false
-                        } else true
+                        it as String
+                        cache.getIfPresent(it)?.let { timeout ->
+                            timeout < System.currentTimeMillis()
+                        } ?: true
                     }.onItem().transformToUniAndMerge { ip ->
                         ip as String
                         sendAddRequest(ip, domain)

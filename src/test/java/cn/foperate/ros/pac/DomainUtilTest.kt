@@ -16,4 +16,11 @@ class DomainUtilTest: Assert() {
         assertTrue(DomainUtil.match("dev.apple.com"))
         assertFalse(DomainUtil.match("www.apple.com"))
     }
+
+    @Test
+    fun testTimeout() {
+        assertEquals(DomainUtil.getTimeout("alskdjflsf"), 24*3600)
+        assertEquals(DomainUtil.getTimeout("36s"), 36)
+        assertEquals(DomainUtil.getTimeout("5m11s"), 311)
+    }
 }

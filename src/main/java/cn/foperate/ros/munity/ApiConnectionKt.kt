@@ -4,6 +4,8 @@ import io.smallrye.mutiny.Multi
 import me.legrange.mikrotik.ApiConnection
 import me.legrange.mikrotik.MikrotikApiException
 import me.legrange.mikrotik.ResultListener
+import me.legrange.mikrotik.impl.ApiCommandException
+import org.apache.commons.pool2.impl.GenericObjectPool
 import javax.net.SocketFactory
 
 fun ApiConnection.executeAsMulti(command: String): Multi<Map<String, String>> {
@@ -33,3 +35,14 @@ fun ApiConnection.executeAsMulti(command: String): Multi<Map<String, String>> {
 }
 
 fun rapidApiConnection(host:String) = ApiConnection.connect(SocketFactory.getDefault(), host, 8728, 5000)
+
+// 命令错误是可恢复的，其它错误直接关闭命令连接
+fun ApiConnection.returnWithException(pool: GenericObjectPool<ApiConnection>, e: Throwable) {
+    if (e is ApiCommandException) {
+        pool.returnObject(this)
+    } else {
+        try {
+            this.close()
+        } catch (e:Exception) {}
+    }
+}
