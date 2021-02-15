@@ -6,7 +6,7 @@
 
     <groupId>me.foperate</groupId>
     <artifactId>ros-ipset</artifactId>
-    <version>1.0.2-SNAPSHOT</version>
+    <version>1.0.2</version>
 
     <properties>
         <kotlin.version>1.4.10</kotlin.version>
