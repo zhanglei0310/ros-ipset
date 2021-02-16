@@ -4,7 +4,6 @@ import io.smallrye.mutiny.Multi
 import me.legrange.mikrotik.ApiConnection
 import me.legrange.mikrotik.MikrotikApiException
 import me.legrange.mikrotik.ResultListener
-import me.legrange.mikrotik.impl.ApiCommandException
 import org.apache.commons.pool2.impl.GenericObjectPool
 import javax.net.SocketFactory
 
