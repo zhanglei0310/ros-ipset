@@ -6,6 +6,7 @@
 # User-specific stuff:
 .idea/
 docker/
+run/
 *.iml
 find.xml
 ignore.xml

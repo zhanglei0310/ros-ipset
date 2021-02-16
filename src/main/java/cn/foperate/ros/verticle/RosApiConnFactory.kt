@@ -22,7 +22,8 @@ class RosApiConnFactory(config:JsonObject) : PooledObjectFactory<ApiConnection> 
     }
 
     override fun destroyObject(p: PooledObject<ApiConnection>) {
-        try {
+        val api = p.getObject()
+        if (api.isConnected) try {
             p.getObject().close()
         } catch (e:Exception) {}
     }

@@ -1,7 +1,7 @@
 package cn.foperate.ros.verticle
 
 import cn.foperate.ros.munity.executeAsMulti
-import cn.foperate.ros.munity.returnWithException
+import cn.foperate.ros.munity.returnToPool
 import cn.foperate.ros.pac.DomainUtil
 import com.google.common.cache.CacheBuilder
 import io.smallrye.mutiny.Multi
@@ -9,6 +9,7 @@ import io.smallrye.mutiny.Uni
 import io.smallrye.mutiny.vertx.core.AbstractVerticle
 import io.vertx.core.json.JsonObject
 import me.legrange.mikrotik.ApiConnection
+import me.legrange.mikrotik.impl.ApiCommandException
 import org.apache.commons.pool2.impl.GenericObjectPool
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig
 import org.slf4j.LoggerFactory
@@ -17,6 +18,7 @@ import java.util.concurrent.TimeUnit
 class RosVerticle : AbstractVerticle() {
     private lateinit var rosFwadrKey: String
     private var maxThread: Int=8
+    private var idleTimeout: Int=30
     private lateinit var rosIp: String
     private lateinit var rosUser: String
     private lateinit var rosPwd: String
@@ -37,13 +39,18 @@ class RosVerticle : AbstractVerticle() {
                     }
                     .onCompletion().invoke {
                         emitter.complete()
-                        rosConnPool.returnObject(apiConnection)
                     }
-                    .onFailure().invoke { e ->
+                    .onFailure().recoverWithItem { e ->
                         log.error("ros command execute error", e)
-                        apiConnection.returnWithException(rosConnPool, e)
+                        if (e !is ApiCommandException) try {
+                            apiConnection.close()
+                        } catch (e:Exception) {}
                         emitter.fail(e)
-                    }.subscribe().with {  }
+                        mapOf()
+                    }.subscribe().with {
+                        // 如果之前出现了执行错误，在return时，连接会被回收
+                       apiConnection.returnToPool(rosConnPool)
+                    }
             } catch (e:Exception) {
                 emitter.fail(e)
             }
@@ -98,6 +105,7 @@ class RosVerticle : AbstractVerticle() {
     override fun asyncStart(): Uni<Void> {
 
         maxThread = config().getInteger("maxThread")
+        idleTimeout = config().getInteger("rosIdle")
         rosIp = config().getString("rosIp")
         rosUser = config().getString("rosUser")
         rosPwd = config().getString("rosPwd")
@@ -106,7 +114,11 @@ class RosVerticle : AbstractVerticle() {
         val config = GenericObjectPoolConfig<ApiConnection>()
         config.maxIdle = maxThread
         config.maxTotal = maxThread
-        config.minIdle = maxThread
+        config.minIdle = 2
+        config.minEvictableIdleTimeMillis = idleTimeout*1000L
+        config.testOnReturn = true
+        config.testWhileIdle = true
+        config.timeBetweenEvictionRunsMillis = idleTimeout*1000L
         rosConnPool = GenericObjectPool(RosApiConnFactory(config()), config)
 
         val eb = vertx.eventBus()

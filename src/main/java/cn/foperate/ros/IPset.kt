@@ -26,7 +26,7 @@ object IPset {
     private lateinit var rosPwd: String
     private lateinit var rosIp: String
     private lateinit var rosFwadrKey: String
-    private var rosIdle: Int? = null
+    private var rosIdle: Int = 30
     private var maxThread = 8
     private var localPort: Int = 53
     private lateinit var remote: String
@@ -85,21 +85,6 @@ object IPset {
             Integer.valueOf(rosIdleStr)
         } else {
             30
-        }
-        if (listOf(
-                gfwlistPath,
-                rosIp,
-                rosUser,
-                rosPwd,
-                rosFwadrKey,
-                rosIdle,
-                maxThread,
-                localPort,
-                remote,
-                remotePort
-            ).contains(null)
-        ) {
-            throw RuntimeException("config error")
         }
     }
 
@@ -160,7 +145,8 @@ object IPset {
                 "rosIp" to rosIp,
                 "rosUser" to rosUser,
                 "rosPwd" to rosPwd,
-                "maxThread" to maxThread
+                "maxThread" to maxThread,
+                "rosIdle" to rosIdle
             ), worker = true
         )).onFailure().invoke { e ->
             logger.error(e.message)

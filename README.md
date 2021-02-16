@@ -43,17 +43,17 @@ Config file name must be "jrodns.properties".
 
 |key |require|default|desc|
 |:---|  :---:|   :---: |:---|
-|gfwlistPath|1| |gfwlist files path, seperated by comma. Value could be file name or absolute path
-|whitelistPath|0| |white list files, exception from gfwlist.
-|adblockPath|0| |ad-block list files. domains will be resolve to block-address
-|blockAddress|0|224.0.0.1|the address for domains in ad-block list 
-|rosIp|1| | ros server ip
-|rosUser|1| | ros router login username
-|rosPwd|1| | ros router login password
-|rosFwadrKey|1| | address-list key to set in ros
-|rosIdle|0|30| ros api-connection check delay
-|localPort|0|53|local port for client dns query request
-|remote|1| |remote dns server for dns iterator request
-|remotePort|1|53| remote dns server port for dns iterator request
-|maxThread|0|10|server worker count
+|gfwlistPath|Yes| |gfwlist files path, seperated by comma. Value could be file name or absolute path
+|whitelistPath|No| |white list files, exception from gfwlist.
+|adblockPath|No| |ad-block list files. domains will be resolve to block-address
+|blockAddress|No|224.0.0.1|the address for domains in ad-block list 
+|rosIp|Yes| | ros server ip
+|rosUser|Yes| | ros router login username
+|rosPwd|Yes| | ros router login password
+|rosFwadrKey|Yes| | address-list key to set in ros
+|rosIdle|No|30| ros api-connection check delay
+|localPort|No|53|local port for client dns query request
+|remote|Yes| |remote dns server for dns iterator request
+|remotePort|Yes|53| remote dns server port for dns iterator request
+|maxThread|No|10|server worker count
 

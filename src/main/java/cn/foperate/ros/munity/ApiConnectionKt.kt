@@ -36,13 +36,8 @@ fun ApiConnection.executeAsMulti(command: String): Multi<Map<String, String>> {
 
 fun rapidApiConnection(host:String) = ApiConnection.connect(SocketFactory.getDefault(), host, 8728, 5000)
 
-// 命令错误是可恢复的，其它错误直接关闭命令连接
-fun ApiConnection.returnWithException(pool: GenericObjectPool<ApiConnection>, e: Throwable) {
-    if (e is ApiCommandException) {
+fun ApiConnection.returnToPool(pool: GenericObjectPool<ApiConnection>) {
+    try {
         pool.returnObject(this)
-    } else {
-        try {
-            this.close()
-        } catch (e:Exception) {}
-    }
+    } catch (e:Exception) {}
 }
