@@ -4,6 +4,7 @@ import cn.foperate.ros.munity.AsyncSocketFactory
 import io.smallrye.mutiny.Multi
 import io.smallrye.mutiny.Uni
 import io.smallrye.mutiny.subscription.MultiEmitter
+import io.vertx.core.Handler
 import io.vertx.mutiny.core.Vertx
 import io.vertx.mutiny.core.buffer.Buffer
 import io.vertx.mutiny.core.net.NetSocket
@@ -12,7 +13,10 @@ import me.legrange.mikrotik.ApiConnectionException
 import me.legrange.mikrotik.MikrotikApiException
 import me.legrange.mikrotik.ResultListener
 import org.slf4j.LoggerFactory
-import java.io.*
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.io.UnsupportedEncodingException
 import java.net.UnknownHostException
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
@@ -26,7 +30,7 @@ import java.util.function.Consumer
  *
  * @author GideonLeGrange
  */
-class AsyncApiConnection private constructor(val vertx: Vertx): AutoCloseable{
+open class AsyncApiConnection(val vertx: Vertx): AutoCloseable{
     fun isConnected(): Boolean {
         return connected
     }
@@ -47,8 +51,8 @@ class AsyncApiConnection private constructor(val vertx: Vertx): AutoCloseable{
 
                     if (res.containsKey("ret")) {
                         val hash = res["ret"] as String
-                        var chal = AsyncUtil.hexStrToStr("00") + String(password.toCharArray()) + AsyncUtil.hexStrToStr(hash)
-                        chal = AsyncUtil.hashMD5(chal)
+                        var chal = Util.hexStrToStr("00") + String(password.toCharArray()) + Util.hexStrToStr(hash)
+                        chal = Util.hashMD5(chal)
                         executeAsMulti("/login name=$username response=00$chal")
                             .subscribe().with({
                                 emitter.complete(null)
@@ -81,18 +85,47 @@ class AsyncApiConnection private constructor(val vertx: Vertx): AutoCloseable{
     }
 
     @Throws(MikrotikApiException::class)
-    fun executeAsMulti(cmd: String): Multi<Map<String, String>> {
+    open fun executeAsMulti(cmd: String): Multi<Map<String, String>> {
         return executeAsMulti(Parser.parse(cmd), timeout = timeout)
     }
 
     @Throws(MikrotikApiException::class)
-    fun execute(cmd: String, lis: ResultListener): String {
+    private fun execute(cmd: String, lis: ResultListener): String {
         return execute(Parser.parse(cmd), lis)
     }
 
     @Throws(MikrotikApiException::class)
+    private fun executeAsMulti(cmd: Command, timeout: Int): Multi<Map<String, String>> {
+        val listener = SyncListener(vertx)
+        val tag = execute(cmd, listener)
+        return listener.getResults(timeout) {
+            cancel(tag)
+        }
+    }
+
+    @Throws(MikrotikApiException::class)
+    private fun execute(cmd: Command, lis: ResultListener): String {
+        val tag = nextTag()
+        cmd.tag = tag
+        listeners[tag] = lis
+        try {
+            val baos = ByteArrayOutputStream()
+            Util.write(cmd, baos)
+            val buffer = Buffer.buffer(baos.toByteArray())
+            sock.write(buffer).subscribe().with {
+                log.debug("命令已发送")
+            }
+        } catch (ex: UnsupportedEncodingException) {
+            throw ApiDataException(ex.message, ex)
+        } catch (ex: IOException) {
+            throw ApiConnectionException(ex.message, ex)
+        }
+        return tag
+    }
+
+    @Throws(MikrotikApiException::class)
     fun cancel(tag: String) {
-        executeAsMulti("/cancel tag=$tag")
+        executeAsMulti("/cancel tag=$tag").subscribe().with {  }
     }
 
     @Throws(MikrotikApiException::class)
@@ -109,46 +142,20 @@ class AsyncApiConnection private constructor(val vertx: Vertx): AutoCloseable{
         if (!connected) {
             throw ApiConnectionException("Not/no longer connected to remote Mikrotik")
         }
+        connected = false
 
         try {
-            sock.close().subscribe().with { connected = false }
+            sock.close().subscribe().with {  }
         } catch (ex: IOException) {
             throw ApiConnectionException("Error closing socket: ${ex.message}", ex)
         }
-    }
-
-    @Throws(MikrotikApiException::class)
-    private fun executeAsMulti(cmd: Command, timeout: Int): Multi<Map<String, String>> {
-        val listener = SyncListener(vertx)
-        execute(cmd, listener)
-        return listener.getResults(timeout)
-    }
-
-    @Throws(MikrotikApiException::class)
-    private fun execute(cmd: Command, lis: ResultListener): String {
-        val tag = nextTag()
-        cmd.tag = tag
-        listeners[tag] = lis
-        try {
-            val baos = ByteArrayOutputStream()
-            AsyncUtil.write(cmd, baos)
-            val buffer = Buffer.buffer(baos.toByteArray())
-            sock.write(buffer).subscribe().with {
-                log.debug("命令已发送")
-            }
-        } catch (ex: UnsupportedEncodingException) {
-            throw ApiDataException(ex.message, ex)
-        } catch (ex: IOException) {
-            throw ApiConnectionException(ex.message, ex)
-        }
-        return tag
     }
 
     /**
      * Start the API. Connects to the Mikrotik
      */
     @Throws(ApiConnectionException::class)
-    private fun open(host: String, port: Int, fact: AsyncSocketFactory):Uni<Void> {
+    fun open(host: String, port: Int, fact: AsyncSocketFactory):Uni<Void> {
         return Uni.createFrom().emitter { emitter ->
             fact.createSocket(host, port).subscribe().with ({
                 log.info("已连接到服务器")
@@ -251,7 +258,7 @@ class AsyncApiConnection private constructor(val vertx: Vertx): AutoCloseable{
                 output.write(remainBuffer.bytes, 0, remains)
                 if (remains==1) {
                     try {
-                        val s = AsyncUtil.decode(ByteArrayInputStream(output.toByteArray()))
+                        val s = Util.decode(ByteArrayInputStream(output.toByteArray()))
                         put(s)
                     } catch (ex: ApiDataException) {
                         put(ex)
@@ -523,8 +530,9 @@ class AsyncApiConnection private constructor(val vertx: Vertx): AutoCloseable{
         }
 
         @Throws(MikrotikApiException::class)
-        fun getResults(timeout: Int): Multi<Map<String, String>> {
+        fun getResults(timeout: Int, task: Runnable): Multi<Map<String, String>> {
             timerId = vertx.setTimer(timeout*1000L) {
+                task.run()
                 emitter.fail(ApiConnectionException("Command timed out after $timeout ms"))
             }
             return results
