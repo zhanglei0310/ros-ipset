@@ -5,7 +5,6 @@ import io.smallrye.mutiny.Multi
 import io.smallrye.mutiny.Uni
 import io.smallrye.mutiny.subscription.UniEmitter
 import io.vertx.mutiny.core.Vertx
-import me.legrange.mikrotik.ApiConnection
 import me.legrange.mikrotik.impl.ApiCommandException
 import me.legrange.mikrotik.impl.AsyncApiConnection
 import org.slf4j.LoggerFactory
@@ -71,7 +70,7 @@ class PooledApiConnection(vertx: Vertx): AsyncApiConnection(vertx) {
             } ?: connPool.add(conn)
         }
 
-        fun connect(fact: AsyncSocketFactory, host: String, username:String, password:String, port: Int = ApiConnection.DEFAULT_PORT): Uni<PooledApiConnection> {
+        fun connect(fact: AsyncSocketFactory, options: ApiConnectionOptions): Uni<PooledApiConnection> {
             connPool.poll()?.let {
                 val conn = connPool.remove()
                 conn.using = true
@@ -85,9 +84,9 @@ class PooledApiConnection(vertx: Vertx): AsyncApiConnection(vertx) {
 
                 val conn = PooledApiConnection(fact.vertx)
 
-                conn.open(host, port, fact)
+                conn.open(options.host, options.port, fact, options.idleTimeout)
                     .onItem().transformToUni { _ ->
-                        conn.login(username, password)
+                        conn.login(options.username, options.password)
                     }.subscribe().with ({
                         log.info("Login successed")
                         conn.using = true

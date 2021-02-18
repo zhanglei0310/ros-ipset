@@ -1,16 +1,16 @@
 package cn.foperate.ros.verticle
 
-import cn.foperate.ros.munity.executeAsMulti
-import cn.foperate.ros.munity.returnToPool
+import cn.foperate.ros.api.ApiConnectionOptions
+import cn.foperate.ros.api.PooledApiConnection
+import cn.foperate.ros.munity.AsyncSocketFactory
 import cn.foperate.ros.pac.DomainUtil
 import com.google.common.cache.CacheBuilder
 import io.smallrye.mutiny.Multi
 import io.smallrye.mutiny.Uni
 import io.smallrye.mutiny.vertx.core.AbstractVerticle
 import io.vertx.core.json.JsonObject
+import io.vertx.kotlin.core.net.netClientOptionsOf
 import me.legrange.mikrotik.ApiConnection
-import me.legrange.mikrotik.impl.ApiCommandException
-import org.apache.commons.pool2.impl.GenericObjectPool
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig
 import org.slf4j.LoggerFactory
 import java.util.concurrent.TimeUnit
@@ -18,42 +18,34 @@ import java.util.concurrent.TimeUnit
 class RosVerticle : AbstractVerticle() {
     private lateinit var rosFwadrKey: String
     private var maxThread: Int=8
-    private var idleTimeout: Int=30
-    private lateinit var rosIp: String
-    private lateinit var rosUser: String
-    private lateinit var rosPwd: String
 
     private val cache = CacheBuilder.newBuilder()
         .expireAfterWrite(24, TimeUnit.HOURS)
         .build<String, Long>()
-    private lateinit var rosConnPool: GenericObjectPool<ApiConnection>
+    private lateinit var socketFactory: AsyncSocketFactory
+    private lateinit var apiConnectionOptions:ApiConnectionOptions
 
     private fun executeCommandAsMulti(command: String): Multi<Map<String, String>> {
         // 二度封装Multi有两个原因：borrowObject本身有可能失败，以及考虑在出现错误时关闭api连接
         return Multi.createFrom().emitter { emitter ->
-            try {
-                val apiConnection = rosConnPool.borrowObject()
-                apiConnection.executeAsMulti(command)
-                    .onItem().invoke { item ->
-                        emitter.emit(item)
-                    }
-                    .onCompletion().invoke {
-                        emitter.complete()
-                    }
-                    .onFailure().recoverWithItem { e ->
-                        log.error("ros command execute error", e)
-                        if (e !is ApiCommandException) try {
+            PooledApiConnection.connect(socketFactory, apiConnectionOptions)
+                .subscribe().with { apiConnection ->
+                    apiConnection.executeAsMulti(command)
+                        .onItem().invoke { item ->
+                            emitter.emit(item)
+                        }
+                        .onCompletion().invoke {
+                            emitter.complete()
+                        }
+                        .onFailure().recoverWithItem { e ->
+                            log.error("ros command execute error", e)
+                            emitter.fail(e)
+                            mapOf()
+                        }.subscribe().with {
+                            // 如果之前出现了执行错误，在return时，连接会被回收
                             apiConnection.close()
-                        } catch (e:Exception) {}
-                        emitter.fail(e)
-                        mapOf()
-                    }.subscribe().with {
-                        // 如果之前出现了执行错误，在return时，连接会被回收
-                       apiConnection.returnToPool(rosConnPool)
-                    }
-            } catch (e:Exception) {
-                emitter.fail(e)
-            }
+                        }
+                }
         }
     }
 
@@ -105,18 +97,23 @@ class RosVerticle : AbstractVerticle() {
     override fun asyncStart(): Uni<Void> {
 
         maxThread = config().getInteger("maxThread")
-        idleTimeout = config().getInteger("rosIdle")
-        rosIp = config().getString("rosIp")
-        rosUser = config().getString("rosUser")
-        rosPwd = config().getString("rosPwd")
         rosFwadrKey = config().getString("rosFwadrKey")
+
+        socketFactory = AsyncSocketFactory(vertx, netClientOptionsOf(
+            connectTimeout = 3000
+        ))
+        apiConnectionOptions = ApiConnectionOptions(
+            username = config().getString("rosUser"),
+            password = config().getString("rosPwd"),
+            host = config().getString("rosIp"),
+            idleTimeout = config().getInteger("rosIdle")
+        )
 
         val config = GenericObjectPoolConfig<ApiConnection>()
         config.maxIdle = maxThread
         config.maxTotal = maxThread
         config.minIdle = 2
         config.testOnReturn = true
-        rosConnPool = GenericObjectPool(RosApiConnFactory(config()), config)
 
         val eb = vertx.eventBus()
 

@@ -51,9 +51,3 @@ class ApiConnectionPool: Pool<AsyncApiConnection> {
 fun ApiConnectionPool.connectionAdded(conn:AsyncApiConnection) {
 
 }
-
-data class ApiConnectionOptions(
-    var maxPoolWaiting: Int = 0,
-    var maxPoolSize: Int
-
-)

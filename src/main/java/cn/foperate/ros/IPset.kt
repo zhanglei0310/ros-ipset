@@ -10,7 +10,6 @@ import io.vertx.core.logging.SLF4JLogDelegateFactory
 import io.vertx.kotlin.core.deploymentOptionsOf
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.mutiny.core.Vertx
-import io.vertx.mutiny.core.buffer.Buffer
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileInputStream
@@ -140,7 +139,7 @@ object IPset {
 
         logger.info("GFWList load completed")
 
-        val vertx = Vertx.vertx(VertxOptions().setWorkerPoolSize(maxThread))
+        val vertx = Vertx.vertx(VertxOptions())
         vertx.deployVerticle(RosVerticle(), deploymentOptionsOf(
             config = jsonObjectOf(
                 "rosFwadrKey" to rosFwadrKey,
@@ -149,12 +148,12 @@ object IPset {
                 "rosPwd" to rosPwd,
                 "maxThread" to maxThread,
                 "rosIdle" to rosIdle
-            ), worker = true
+            )
         )).onFailure().invoke { e ->
             logger.error(e.message)
             vertx.close().subscribeAsCompletionStage()
         }.subscribe().with {  }
-        vertx.deployVerticleAndAwait(DnsVeticle(), deploymentOptionsOf(
+        vertx.deployVerticle(DnsVeticle(), deploymentOptionsOf(
             config = jsonObjectOf(
                 "remotePort" to remotePort,
                 "remote" to remote,
@@ -162,7 +161,7 @@ object IPset {
                 "fallback" to fallback,
                 "blockAddress" to blockAddress
             )
-        ))
+        )).subscribe().with {  }
 
         logger.info("server started")
     }

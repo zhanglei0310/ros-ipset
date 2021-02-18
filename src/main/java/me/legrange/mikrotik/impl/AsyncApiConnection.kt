@@ -4,7 +4,6 @@ import cn.foperate.ros.munity.AsyncSocketFactory
 import io.smallrye.mutiny.Multi
 import io.smallrye.mutiny.Uni
 import io.smallrye.mutiny.subscription.MultiEmitter
-import io.vertx.core.Handler
 import io.vertx.mutiny.core.Vertx
 import io.vertx.mutiny.core.buffer.Buffer
 import io.vertx.mutiny.core.net.NetSocket
@@ -86,6 +85,7 @@ open class AsyncApiConnection(val vertx: Vertx): AutoCloseable{
 
     @Throws(MikrotikApiException::class)
     open fun executeAsMulti(cmd: String): Multi<Map<String, String>> {
+        log.debug(cmd)
         return executeAsMulti(Parser.parse(cmd), timeout = timeout)
     }
 
@@ -155,17 +155,18 @@ open class AsyncApiConnection(val vertx: Vertx): AutoCloseable{
      * Start the API. Connects to the Mikrotik
      */
     @Throws(ApiConnectionException::class)
-    fun open(host: String, port: Int, fact: AsyncSocketFactory):Uni<Void> {
+    fun open(host: String, port: Int, fact: AsyncSocketFactory, timeout: Int=30):Uni<Void> {
         return Uni.createFrom().emitter { emitter ->
             fact.createSocket(host, port).subscribe().with ({
                 log.info("已连接到服务器")
-                connected = true
-                sock = it
+                this.connected = true
+                this.sock = it
+                this.timeout = timeout
                 it.closeHandler {
                     connected = false
                 }
-                processor = Processor()
-                reader = Reader()
+                this.processor = Processor()
+                this.reader = Reader()
                 it.handler(reader)
                 it.exceptionHandler { e ->
                     log.error(e.toString(), e.message)
@@ -244,7 +245,7 @@ open class AsyncApiConnection(val vertx: Vertx): AutoCloseable{
 
             if (remains==0) {
                 remains = readLen(remainBuffer)
-                log.debug("message length=$remains")
+                //log.debug("message length=$remains")
             }
             while (remains>0){
                 val bufferLength = remainBuffer.length()
@@ -275,7 +276,7 @@ open class AsyncApiConnection(val vertx: Vertx): AutoCloseable{
                     //output.write(buffer.bytes, remains.toInt(), buffer.length()-remains.toInt())
                     remainBuffer = remainBuffer.slice(remains, bufferLength)
                     remains = readLen(remainBuffer)
-                    log.debug("message length=$remains")
+                    //log.debug("message length=$remains")
                 } else {
                     log.debug("数据读取完毕")
                     remains = 0
@@ -533,8 +534,9 @@ open class AsyncApiConnection(val vertx: Vertx): AutoCloseable{
         fun getResults(timeout: Int, task: Runnable): Multi<Map<String, String>> {
             timerId = vertx.setTimer(timeout*1000L) {
                 task.run()
-                emitter.fail(ApiConnectionException("Command timed out after $timeout ms"))
+                emitter.fail(ApiConnectionException("Command timed out after $timeout ms: $it"))
             }
+            log.info("启动了定时器$timerId")
             return results
 
             /*try {
@@ -559,11 +561,10 @@ open class AsyncApiConnection(val vertx: Vertx): AutoCloseable{
             return results*/
         }
 
-        private var timerId = 0L
+        private var timerId = -1L
         private fun stopTimer() {
-            if (timerId!=0L) {
-                vertx.cancelTimer(timerId)
-            }
+            vertx.cancelTimer(timerId)
+            log.info("定时器已关闭: $timerId")
         }
 
         private lateinit var emitter: MultiEmitter<in Map<String, String>>
