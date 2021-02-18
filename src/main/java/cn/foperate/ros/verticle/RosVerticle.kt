@@ -10,7 +10,6 @@ import io.smallrye.mutiny.vertx.core.AbstractVerticle
 import io.vertx.core.json.JsonObject
 import me.legrange.mikrotik.ApiConnection
 import me.legrange.mikrotik.impl.ApiCommandException
-import org.apache.commons.pool2.impl.BaseObjectPoolConfig.DEFAULT_TIME_BETWEEN_EVICTION_RUNS_MILLIS
 import org.apache.commons.pool2.impl.GenericObjectPool
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig
 import org.slf4j.LoggerFactory
@@ -116,11 +115,7 @@ class RosVerticle : AbstractVerticle() {
         config.maxIdle = maxThread
         config.maxTotal = maxThread
         config.minIdle = 2
-        config.minEvictableIdleTimeMillis = idleTimeout*1000L
         config.testOnReturn = true
-        config.testWhileIdle = true
-        // 并不使用common pool的缺省线程执行回收操作，而是由VertX的计时器执行
-        config.timeBetweenEvictionRunsMillis = DEFAULT_TIME_BETWEEN_EVICTION_RUNS_MILLIS
         rosConnPool = GenericObjectPool(RosApiConnFactory(config()), config)
 
         val eb = vertx.eventBus()
@@ -145,12 +140,6 @@ class RosVerticle : AbstractVerticle() {
                         message.reply(System.currentTimeMillis())
                     }
             }
-
-        // 定期执行资源池清理操作
-        vertx.periodicStream(idleTimeout*1000L).handler {
-            log.info("Ros connection pool to be evicted")
-            rosConnPool.evict()
-        }
 
         return loadCache()
     }

@@ -10,6 +10,7 @@ import io.vertx.core.logging.SLF4JLogDelegateFactory
 import io.vertx.kotlin.core.deploymentOptionsOf
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.mutiny.core.Vertx
+import io.vertx.mutiny.core.buffer.Buffer
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileInputStream
@@ -107,6 +108,7 @@ object IPset {
 
     @JvmStatic
     fun main(args:Array<String>) {
+
         setLogger()
 
         var configFilePath = "jrodns.properties"
