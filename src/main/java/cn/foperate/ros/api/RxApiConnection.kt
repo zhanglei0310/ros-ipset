@@ -158,7 +158,7 @@ open class RxApiConnection(val vertx: Vertx): AutoCloseable {
                         )
                     )
                 } else {
-                    log.debug("成功登陆，没有MD5校验 ${res["message"]}")
+                    log.debug("成功登陆，没有MD5校验")
                     return@transformToUni Uni.createFrom().item(res)
                 }
             }
@@ -201,7 +201,10 @@ open class RxApiConnection(val vertx: Vertx): AutoCloseable {
                 Multi.createFrom().emitter<List<String>> { em ->
                     val parser = ProtocolParser(emitter = em)
                     it.handler(parser)
-                    it.closeHandler(parser::handleEnd)
+                    it.closeHandler {
+                        parser.handleEnd()
+                        close()
+                    }
                     it.exceptionHandler { e ->
                         parser.handleException(e)
                         connected = false

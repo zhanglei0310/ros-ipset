@@ -20,6 +20,7 @@ class PooledApiConnection(vertx: Vertx): RxApiConnection(vertx) {
         if (connected) {
             returnConnection(this)
         } else {
+            log.debug("已经关闭的连接被逐出连接池")
             connMap.remove(key)
         }
     }
@@ -57,7 +58,8 @@ class PooledApiConnection(vertx: Vertx): RxApiConnection(vertx) {
 
                 connPool.poll()?.let {
                     if (it.idleTime > System.currentTimeMillis() - 30000) {
-                        it.forceClose()
+                        if (it.connected) it.forceClose()
+                        connMap.remove(it.key)
                     }
                 }
             }

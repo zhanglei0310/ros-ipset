@@ -87,21 +87,18 @@ class RosVerticle : AbstractVerticle() {
             }
     }
 
-    private fun sendAddRequest(ip: String, comment: String):Uni<Void> {
+    private fun sendAddRequest(ip: String, comment: String):Uni<Map<String, String>> {
         val command = Command("/ip/firewall/address-list/add", params = mapOf(
             "list" to rosFwadrKey,
             "address" to ip,
             "timeout" to "24h",
             "comment" to comment
         ))
-        return Uni.createFrom().emitter { emitter ->
-            executeCommandAsUni(command)
-                .subscribe().with{
+        return executeCommandAsUni(command)
+                .onItem().invoke { _ ->
                     cache.put(ip, System.currentTimeMillis() + 24*3600*1000)
                     log.info("$ip add success")
-                    emitter.complete(null)
                 }
-        }
     }
 
     /*fun clear() {
@@ -156,6 +153,10 @@ class RosVerticle : AbstractVerticle() {
                         message.reply(System.currentTimeMillis())
                     }
             }
+
+        vertx.setPeriodic(5000L) {
+            PooledApiConnection.evite()
+        }
 
         return loadCache()
     }
