@@ -48,6 +48,26 @@ class RosVerticle : AbstractVerticle() {
         }
     }
 
+    private fun executeCommandAsUni(command: Command): Uni<Map<String, String>> {
+        return Uni.createFrom().emitter { emitter ->
+            PooledApiConnection.connect(socketFactory, apiConnectionOptions)
+                .subscribe().with { apiConnection ->
+                    apiConnection.executeAsUni(command)
+                        .onItem().invoke { item ->
+                            emitter.complete(item)
+                        }
+                        .onFailure().recoverWithItem { e ->
+                            log.error("ros command execute error", e)
+                            emitter.fail(e)
+                            mapOf()
+                        }.subscribe().with {
+                            // 如果之前出现了执行错误，在return时，连接会被回收
+                            apiConnection.close()
+                        }
+                }
+        }
+    }
+
     private fun loadCache():Uni<Void> {
         val command = Command("/ip/firewall/address-list/print", queries = mapOf(
             "list" to rosFwadrKey
@@ -75,8 +95,7 @@ class RosVerticle : AbstractVerticle() {
             "comment" to comment
         ))
         return Uni.createFrom().emitter { emitter ->
-            executeCommandAsMulti(command)
-                .collect().asList()
+            executeCommandAsUni(command)
                 .subscribe().with{
                     cache.put(ip, System.currentTimeMillis() + 24*3600*1000)
                     log.info("$ip add success")

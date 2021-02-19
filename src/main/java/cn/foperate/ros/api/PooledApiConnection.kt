@@ -35,6 +35,15 @@ class PooledApiConnection(vertx: Vertx): RxApiConnection(vertx) {
             }
     }
 
+    override fun executeAsUni(cmd: Command, timeout: Int): Uni<Map<String, String>> {
+        return super.executeAsUni(cmd, timeout)
+            .onFailure().invoke { e ->
+                if (e !is ApiCommandException) {
+                    forceClose()
+                }
+            }
+    }
+
     companion object {
         private val log = LoggerFactory.getLogger(PooledApiConnection::class.java)
         private val connMap = mutableMapOf<Long, PooledApiConnection>()

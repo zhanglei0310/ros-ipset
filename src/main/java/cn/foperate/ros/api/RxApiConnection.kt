@@ -6,11 +6,12 @@ import io.smallrye.mutiny.Uni
 import io.vertx.mutiny.core.Vertx
 import io.vertx.mutiny.core.buffer.Buffer
 import io.vertx.mutiny.core.net.NetSocket
+import org.apache.commons.codec.digest.DigestUtils
 import org.slf4j.LoggerFactory
 import java.io.IOException
 import java.io.UnsupportedEncodingException
 import java.net.UnknownHostException
-
+import org.apache.commons.codec.binary.Hex
 
 open class RxApiConnection(val vertx: Vertx): AutoCloseable {
 
@@ -29,6 +30,43 @@ open class RxApiConnection(val vertx: Vertx): AutoCloseable {
         executeAsMulti(Command("/cancel tag=$tag")).subscribe().with {  }
     }
 
+    open fun executeAsUni(cmd: Command, timeout: Int = this.timeout):Uni<Map<String, String>> {
+        return Uni.createFrom().emitter { em ->
+            val tag = nextTag()
+            cmd.tag = tag
+
+            val timerId = vertx.setTimer(timeout*1000L) {
+                cancel(tag)
+                em.fail(ApiTimeoutException("Command timed out after $timeout ms: $it"))
+            }
+            log.debug("启动了定时器$timerId")
+
+            val listener = object:ResponseListener {
+                var sent = false
+                override fun receive(result: Response) {
+                    vertx.cancelTimer(timerId)
+                    em.complete(result.data)
+                    sent = true
+                }
+
+                override fun error(ex: MikrotikApiException) {
+                    vertx.cancelTimer(timerId)
+                    em.fail(ex)
+                }
+
+                override fun completed(result: Response) {
+                    vertx.cancelTimer(timerId)
+                    if (result.data.isNotEmpty()) {
+                        em.complete(result.data)
+                    } else if (!sent) {
+                        em.complete(mapOf())
+                    }
+                }
+            }
+            execute(cmd, listener)
+        }
+    }
+
     open fun executeAsMulti(cmd: Command, timeout: Int = this.timeout): Multi<Map<String, String>> {
         return Multi.createFrom().emitter { em ->
             val tag = nextTag()
@@ -38,7 +76,7 @@ open class RxApiConnection(val vertx: Vertx): AutoCloseable {
                 cancel(tag)
                 em.fail(ApiTimeoutException("Command timed out after $timeout ms: $it"))
             }
-            log.info("启动了定时器$timerId")
+            log.debug("启动了定时器$timerId")
 
             val listener = object:ResponseListener {
                 override fun receive(result: Response) {
@@ -89,56 +127,41 @@ open class RxApiConnection(val vertx: Vertx): AutoCloseable {
         return cmd.tag
     }
 
-    fun login(username: String, password: String): Uni<Void> {
-        return Uni.createFrom().emitter { emitter ->
-            if (username.trim { it <= ' ' }.isEmpty()) {
-                emitter.fail(ApiConnectionException("API username cannot be empty"))
-            }
-            val cmd = Command("/login", params = mapOf(
+    fun login(username: String, password: String): Uni<Map<String, String>> {
+        //return Uni.createFrom().emitter { emitter ->
+        if (username.trim { it <= ' ' }.isEmpty()) {
+            return Uni.createFrom().failure(ApiConnectionException("API username cannot be empty"))
+        }
+        val cmd = Command(
+            "/login", params = mapOf(
                 "name" to username,
                 "password" to password
-            ))
-            var hasHash = false
-            executeAsMulti(cmd, timeout = timeout)
-                .onItem().invoke { res ->
-                    log.debug("似乎需要MD5校验")
-                    hasHash = true
+            )
+        )
+        return executeAsUni(cmd, timeout = timeout)
+            .onItem().transformToUni { res ->
+                if (res.containsKey("ret")) {
+                    log.debug("似乎需要MD5校验: $res")
 
-                    if (res.containsKey("ret")) {
-                        /*val hash = res["ret"] as String
-                        var chal = Util.hexStrToStr("00") + String(password.toCharArray()) + Util.hexStrToStr(hash)
-                        chal = Util.hashMD5(chal)
-                        executeAsMulti("/login name=$username response=00$chal")
-                            .subscribe().with({
-                                emitter.complete(null)
-                            }) { e ->
-                                emitter.fail(e)
-                            } */
-                        log.error(res["ret"])
-                    }
+                    val hash = res["ret"] as String
+                    val buffer = Buffer.buffer()
+                        .appendByte(0x00)
+                        .appendString(password)
+                        .appendBytes(Hex.decodeHex(hash))
+                    val digest = DigestUtils.md5Hex(buffer.bytes)
+                    return@transformToUni executeAsUni(
+                        Command(
+                            "/login", params = mapOf(
+                                "name" to username,
+                                "response" to "00$digest"
+                            )
+                        )
+                    )
+                } else {
+                    log.debug("成功登陆，没有MD5校验 ${res["message"]}")
+                    return@transformToUni Uni.createFrom().item(res)
                 }
-                .onCompletion().invoke {
-                    log.debug("成功登陆，没有MD5校验")
-                    if (!hasHash) {
-                        emitter.complete(null)
-                    }
-                }
-                .onFailure().invoke { e ->
-                    emitter.fail(e)
-                }
-                .subscribe().with {}
-        }
-
-
-        /*if (list.isNotEmpty()) {
-            val res = list[0]
-            if (res.containsKey("ret")) {
-                val hash = res["ret"]
-                var chal = Util.hexStrToStr("00") + String(password.toCharArray()) + Util.hexStrToStr(hash)
-                chal = Util.hashMD5(chal)
-                execute("/login name=$username response=00$chal")
             }
-        }*/
     }
 
     /**
