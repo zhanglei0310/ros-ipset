@@ -107,6 +107,7 @@ object IPset {
 
     @JvmStatic
     fun main(args:Array<String>) {
+
         setLogger()
 
         var configFilePath = "jrodns.properties"
@@ -138,7 +139,7 @@ object IPset {
 
         logger.info("GFWList load completed")
 
-        val vertx = Vertx.vertx(VertxOptions().setWorkerPoolSize(maxThread))
+        val vertx = Vertx.vertx(VertxOptions())
         vertx.deployVerticle(RosVerticle(), deploymentOptionsOf(
             config = jsonObjectOf(
                 "rosFwadrKey" to rosFwadrKey,
@@ -147,12 +148,12 @@ object IPset {
                 "rosPwd" to rosPwd,
                 "maxThread" to maxThread,
                 "rosIdle" to rosIdle
-            ), worker = true
+            )
         )).onFailure().invoke { e ->
             logger.error(e.message)
             vertx.close().subscribeAsCompletionStage()
         }.subscribe().with {  }
-        vertx.deployVerticleAndAwait(DnsVeticle(), deploymentOptionsOf(
+        vertx.deployVerticle(DnsVeticle(), deploymentOptionsOf(
             config = jsonObjectOf(
                 "remotePort" to remotePort,
                 "remote" to remote,
@@ -160,7 +161,7 @@ object IPset {
                 "fallback" to fallback,
                 "blockAddress" to blockAddress
             )
-        ))
+        )).subscribe().with {  }
 
         logger.info("server started")
     }
