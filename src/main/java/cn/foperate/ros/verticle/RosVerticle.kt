@@ -1,6 +1,7 @@
 package cn.foperate.ros.verticle
 
 import cn.foperate.ros.api.ApiConnectionOptions
+import cn.foperate.ros.api.Command
 import cn.foperate.ros.api.PooledApiConnection
 import cn.foperate.ros.munity.AsyncSocketFactory
 import cn.foperate.ros.pac.DomainUtil
@@ -10,8 +11,6 @@ import io.smallrye.mutiny.Uni
 import io.smallrye.mutiny.vertx.core.AbstractVerticle
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.core.net.netClientOptionsOf
-import me.legrange.mikrotik.ApiConnection
-import org.apache.commons.pool2.impl.GenericObjectPoolConfig
 import org.slf4j.LoggerFactory
 import java.util.concurrent.TimeUnit
 
@@ -25,7 +24,7 @@ class RosVerticle : AbstractVerticle() {
     private lateinit var socketFactory: AsyncSocketFactory
     private lateinit var apiConnectionOptions:ApiConnectionOptions
 
-    private fun executeCommandAsMulti(command: String): Multi<Map<String, String>> {
+    private fun executeCommandAsMulti(command: Command): Multi<Map<String, String>> {
         // 二度封装Multi有两个原因：borrowObject本身有可能失败，以及考虑在出现错误时关闭api连接
         return Multi.createFrom().emitter { emitter ->
             PooledApiConnection.connect(socketFactory, apiConnectionOptions)
@@ -50,7 +49,9 @@ class RosVerticle : AbstractVerticle() {
     }
 
     private fun loadCache():Uni<Void> {
-        val command = "/ip/firewall/address-list/print where list=$rosFwadrKey return address,timeout"
+        val command = Command("/ip/firewall/address-list/print", queries = mapOf(
+            "list" to rosFwadrKey
+        ), props = listOf("address", "timeout"))
         return executeCommandAsMulti(command)
             .onItem().transform {
                 val timeout = if (it.containsKey("timeout")) {
@@ -67,7 +68,12 @@ class RosVerticle : AbstractVerticle() {
     }
 
     private fun sendAddRequest(ip: String, comment: String):Uni<Void> {
-        val command = "/ip/firewall/address-list/add list=$rosFwadrKey address=$ip timeout=24h comment=$comment"
+        val command = Command("/ip/firewall/address-list/add", params = mapOf(
+            "list" to rosFwadrKey,
+            "address" to ip,
+            "timeout" to "24h",
+            "comment" to comment
+        ))
         return Uni.createFrom().emitter { emitter ->
             executeCommandAsMulti(command)
                 .collect().asList()
@@ -108,12 +114,6 @@ class RosVerticle : AbstractVerticle() {
             host = config().getString("rosIp"),
             idleTimeout = config().getInteger("rosIdle")
         )
-
-        val config = GenericObjectPoolConfig<ApiConnection>()
-        config.maxIdle = maxThread
-        config.maxTotal = maxThread
-        config.minIdle = 2
-        config.testOnReturn = true
 
         val eb = vertx.eventBus()
 

@@ -5,13 +5,11 @@ import io.smallrye.mutiny.Multi
 import io.smallrye.mutiny.Uni
 import io.smallrye.mutiny.subscription.UniEmitter
 import io.vertx.mutiny.core.Vertx
-import me.legrange.mikrotik.impl.ApiCommandException
-import me.legrange.mikrotik.impl.AsyncApiConnection
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.random.Random
 
-class PooledApiConnection(vertx: Vertx): AsyncApiConnection(vertx) {
+class PooledApiConnection(vertx: Vertx): RxApiConnection(vertx) {
 
     private val key = Random.nextLong()
     private var using = false
@@ -19,7 +17,7 @@ class PooledApiConnection(vertx: Vertx): AsyncApiConnection(vertx) {
 
     override fun close() {
         using = false
-        if (isConnected()) {
+        if (connected) {
             returnConnection(this)
         } else {
             connMap.remove(key)
@@ -28,8 +26,8 @@ class PooledApiConnection(vertx: Vertx): AsyncApiConnection(vertx) {
 
     private fun forceClose() = super.close()
 
-    override fun executeAsMulti(cmd: String): Multi<Map<String, String>> {
-        return super.executeAsMulti(cmd)
+    override fun executeAsMulti(cmd: Command, timeout: Int): Multi<Map<String, String>> {
+        return super.executeAsMulti(cmd, timeout)
             .onFailure().invoke { e ->
                 if (e !is ApiCommandException) {
                     forceClose()
@@ -57,7 +55,7 @@ class PooledApiConnection(vertx: Vertx): AsyncApiConnection(vertx) {
 
             // 去掉不正常的等待连接，应该是没有任何作用
             connMap.filter { !connPool.contains(it.value) }
-                .filter { !it.value.using || !it.value.isConnected() }
+                .filter { !it.value.using || !it.value.connected }
                 .map { it.key }
                 .forEach { connMap.remove(it) }
         }

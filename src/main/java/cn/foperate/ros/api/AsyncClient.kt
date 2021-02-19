@@ -22,7 +22,9 @@ object AsyncClient
             password = "Ocwesw2r3"
         )).subscribe().with ({ conn ->
             log.info("Login successed")
-            val command = "/ip/firewall/address-list/print where list=PROXY return address,timeout"
+            val command = Command("/ip/firewall/address-list/print", queries= mapOf(
+                "list" to "PROXY"
+            ), props = listOf("address","timeout")) //,q where  return address,timeout"
             conn.executeAsMulti(command)
                 .subscribe().with {
                     log.debug(it.toString())
