@@ -1,6 +1,7 @@
 package cn.foperate.ros.verticle
 
 import cn.foperate.ros.pac.DomainUtil
+import com.google.common.cache.CacheBuilder
 import io.smallrye.mutiny.Uni
 import io.smallrye.mutiny.vertx.core.AbstractVerticle
 import io.vertx.kotlin.core.datagram.datagramSocketOptionsOf
@@ -12,6 +13,7 @@ import io.vertx.mutiny.core.eventbus.EventBus
 import org.slf4j.LoggerFactory
 import org.xbill.DNS.*
 import java.net.InetAddress
+import java.util.concurrent.TimeUnit
 import kotlin.streams.toList
 
 
@@ -25,6 +27,11 @@ class DnsVeticle: AbstractVerticle() {
 
     private lateinit var serverSocket:DatagramSocket  // 正在监听的服务端口
     private lateinit var eb: EventBus
+
+    private val resultCache = CacheBuilder.newBuilder()
+        .expireAfterWrite(1, TimeUnit.HOURS)
+        .maximumSize(1000)
+        .build<String, Buffer>()
 
     override fun asyncStart(): Uni<Void> {
         localPort = config().getInteger("localPort", localPort)
@@ -44,10 +51,19 @@ class DnsVeticle: AbstractVerticle() {
                     val questionName = message.question.name.toString()
                     val questionType = message.question.type
                     log.debug(questionName)
+                    resultCache.getIfPresent(questionName)?.let {
+                        log.debug("Found matched answer from cache")
+                        val answer = Message(it.bytes)
+                        answer.header.id = message.header.id
+                        val buffer = Buffer.buffer(answer.toWire())
+                        ss.send(buffer, request.sender().port(), request.sender().host())
+                            .subscribe().with { }
+                        return@with
+                    }
                     if (questionType==Type.A) when {
                         DomainUtil.match(questionName) -> {
                             log.debug("gfwlist hint")
-                            forwardToRemote(request)
+                            forwardToRemote(request, questionName)
                         }
                         DomainUtil.matchBlock(questionName) -> {
                             log.debug("adBlock matched")
@@ -55,7 +71,9 @@ class DnsVeticle: AbstractVerticle() {
                             ss.send(Buffer.buffer(reply), request.sender().port(), request.sender().host())
                                 .subscribe().with { }
                         }
-                        else -> forwardToFallback(request)
+                        else -> forwardToFallback(request, questionName)
+                    } else {
+                        forwardToFallback(request, questionName)
                     }
                 }
             }
@@ -68,7 +86,7 @@ class DnsVeticle: AbstractVerticle() {
         return Uni.createFrom().voidItem()
     }
 
-    private fun forwardToRemote(packet: DatagramPacket) {
+    private fun forwardToRemote(packet: DatagramPacket, name: String) {
         val startTime = System.currentTimeMillis()
         val clientSocket = vertx.createDatagramSocket()
         clientSocket.send(packet.data(), remotePort, remote)
@@ -76,14 +94,15 @@ class DnsVeticle: AbstractVerticle() {
                 clientSocket.toMulti().subscribe().with { result ->
                     processResult(packet, result, startTime)
                     clientSocket.closeAndForget()
+                    resultCache.put(name, result.data())
                 }
             }) {
-                forwardToFallback(packet)
+                forwardToFallback(packet, name)
                 clientSocket.closeAndForget()
             }
     }
 
-    private fun forwardToFallback(request: DatagramPacket) {
+    private fun forwardToFallback(request: DatagramPacket, name: String) {
         val clientSocket = vertx.createDatagramSocket()
         clientSocket.send(request.data(), 53, fallback)
             .subscribe().with ({
@@ -92,6 +111,7 @@ class DnsVeticle: AbstractVerticle() {
                     serverSocket.send(response.data(), request.sender().port(), request.sender().host())
                         .subscribe().with {}
                     clientSocket.closeAndForget()
+                    resultCache.put(name, response.data())
                 }
             }) {
                 clientSocket.closeAndForget()

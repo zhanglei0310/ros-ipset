@@ -26,8 +26,6 @@ object IPset {
     private lateinit var rosPwd: String
     private lateinit var rosIp: String
     private lateinit var rosFwadrKey: String
-    private var rosIdle: Int? = null
-    private var maxThread = 8
     private var localPort: Int = 53
     private lateinit var remote: String
     private var remotePort: Int = 53
@@ -65,11 +63,6 @@ object IPset {
             fallback = fb
         }
 
-        val maxThreadStr = properties.getProperty("maxThread")
-        if (!maxThreadStr.isNullOrBlank()) {
-            maxThread = Integer.valueOf(maxThreadStr)
-        }
-
         val localPortStr = properties.getProperty("localPort")
         if (!localPortStr.isNullOrBlank()) {
             localPort = Integer.valueOf(localPortStr)
@@ -78,28 +71,6 @@ object IPset {
         val remotePortStr = properties.getProperty("remotePort")
         if (!remotePortStr.isNullOrBlank()) {
             remotePort = Integer.valueOf(remotePortStr)
-        }
-
-        val rosIdleStr = properties.getProperty("rosIdle")
-        rosIdle = if (rosIdleStr.isNotBlank()) {
-            Integer.valueOf(rosIdleStr)
-        } else {
-            30
-        }
-        if (listOf(
-                gfwlistPath,
-                rosIp,
-                rosUser,
-                rosPwd,
-                rosFwadrKey,
-                rosIdle,
-                maxThread,
-                localPort,
-                remote,
-                remotePort
-            ).contains(null)
-        ) {
-            throw RuntimeException("config error")
         }
     }
 
@@ -122,6 +93,7 @@ object IPset {
 
     @JvmStatic
     fun main(args:Array<String>) {
+
         setLogger()
 
         var configFilePath = "jrodns.properties"
@@ -153,20 +125,19 @@ object IPset {
 
         logger.info("GFWList load completed")
 
-        val vertx = Vertx.vertx(VertxOptions().setWorkerPoolSize(maxThread))
+        val vertx = Vertx.vertx(VertxOptions())
         vertx.deployVerticle(RosVerticle(), deploymentOptionsOf(
             config = jsonObjectOf(
                 "rosFwadrKey" to rosFwadrKey,
                 "rosIp" to rosIp,
                 "rosUser" to rosUser,
-                "rosPwd" to rosPwd,
-                "maxThread" to maxThread
-            ), worker = true
+                "rosPwd" to rosPwd
+            )
         )).onFailure().invoke { e ->
             logger.error(e.message)
             vertx.close().subscribeAsCompletionStage()
         }.subscribe().with {  }
-        vertx.deployVerticleAndAwait(DnsVeticle(), deploymentOptionsOf(
+        vertx.deployVerticle(DnsVeticle(), deploymentOptionsOf(
             config = jsonObjectOf(
                 "remotePort" to remotePort,
                 "remote" to remote,
@@ -174,7 +145,7 @@ object IPset {
                 "fallback" to fallback,
                 "blockAddress" to blockAddress
             )
-        ))
+        )).subscribe().with {  }
 
         logger.info("server started")
     }
