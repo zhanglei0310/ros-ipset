@@ -25,7 +25,7 @@ class ProtocolParser(val emitter: MultiEmitter<in List<String>>): Handler<Buffer
 
     fun handleEnd() {
         log.debug("API连接收到EOF信息，将沿处理链向下通知")
-        emitter.complete()
+        emitter.fail(ApiConnectionException("Connection closed."))
     }
 
     override fun handle(buffer: Buffer) {

@@ -36,7 +36,7 @@ open class RxApiConnection(val vertx: Vertx, val host: String): AutoCloseable {
 
         override fun error(ex: MikrotikApiException) {
             log.error(ex.message, ex)
-            if (ex !is ApiCommandException) {
+            if (ex is ApiConnectionException) {
                 close()
             }
         }
@@ -224,12 +224,14 @@ open class RxApiConnection(val vertx: Vertx, val host: String): AutoCloseable {
                         close()
                     }
                     it.exceptionHandler { e ->
+                        // 这里是一个网络错误，会被下面一条指令转换为ApiConnection错误并抛出
                         parser.handleException(e)
-                        state = ConnectionState.Connected
+                        // 该错误将被responser处理，并导致RxApiConnection关闭
+                        // 无论如何，首先把TCP连接关掉
                         it.closeAndForget()
                     }
                     emitter.complete(null)
-                }.subscribe().with(responser)
+                }.subscribe().with(responser, responser::handleError)
             }) {
                 log.error(it.toString(), it.message)
                 close()
@@ -251,11 +253,7 @@ open class RxApiConnection(val vertx: Vertx, val host: String): AutoCloseable {
         if (isOnline()) { // 避免重复被关闭
             // Exception().printStackTrace()
             state = ConnectionState.Disconnected
-            try {
-                sock.close().subscribe().with {  }
-            } catch (ex: IOException) {
-                throw ApiConnectionException("Error closing socket: ${ex.message}", ex)
-            }
+            sock.closeAndForget()
         }
     }
 

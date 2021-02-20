@@ -1,6 +1,8 @@
 package cn.foperate.ros.api
 
+import io.vertx.core.Handler
 import org.slf4j.LoggerFactory
+import java.lang.Exception
 import java.util.function.Consumer
 
 // 从sentence中读取结果的类，计划使用状态机来实现
@@ -40,6 +42,16 @@ class Responser(val defaultListener: ResponseListener): Consumer<List<String>> {
                 State.TRAP -> listener.error(ApiCommandException(response.data))
                 else -> listener.unknown(response)
             }
+        }
+    }
+
+    fun handleError(ex: Throwable) {
+        ex as ApiConnectionException
+        log.error("Connection error occured：${ex.message}")
+        defaultListener.error(ex)
+
+        listeners.values.forEach {
+            it.error(ex)
         }
     }
 
