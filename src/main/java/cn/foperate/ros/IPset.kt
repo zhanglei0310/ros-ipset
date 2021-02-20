@@ -26,8 +26,6 @@ object IPset {
     private lateinit var rosPwd: String
     private lateinit var rosIp: String
     private lateinit var rosFwadrKey: String
-    private var rosIdle: Int = 30
-    private var maxThread = 8
     private var localPort: Int = 53
     private lateinit var remote: String
     private var remotePort: Int = 53
@@ -65,11 +63,6 @@ object IPset {
             fallback = fb
         }
 
-        val maxThreadStr = properties.getProperty("maxThread")
-        if (!maxThreadStr.isNullOrBlank()) {
-            maxThread = Integer.valueOf(maxThreadStr)
-        }
-
         val localPortStr = properties.getProperty("localPort")
         if (!localPortStr.isNullOrBlank()) {
             localPort = Integer.valueOf(localPortStr)
@@ -78,13 +71,6 @@ object IPset {
         val remotePortStr = properties.getProperty("remotePort")
         if (!remotePortStr.isNullOrBlank()) {
             remotePort = Integer.valueOf(remotePortStr)
-        }
-
-        val rosIdleStr = properties.getProperty("rosIdle")
-        rosIdle = if (rosIdleStr.isNotBlank()) {
-            Integer.valueOf(rosIdleStr)
-        } else {
-            30
         }
     }
 
@@ -145,9 +131,7 @@ object IPset {
                 "rosFwadrKey" to rosFwadrKey,
                 "rosIp" to rosIp,
                 "rosUser" to rosUser,
-                "rosPwd" to rosPwd,
-                "maxThread" to maxThread,
-                "rosIdle" to rosIdle
+                "rosPwd" to rosPwd
             )
         )).onFailure().invoke { e ->
             logger.error(e.message)

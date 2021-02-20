@@ -16,7 +16,6 @@ import java.util.concurrent.TimeUnit
 
 class RosVerticle : AbstractVerticle() {
     private lateinit var rosFwadrKey: String
-    private var maxThread: Int=8
 
     private val cache = CacheBuilder.newBuilder()
         .expireAfterWrite(24, TimeUnit.HOURS)
@@ -118,7 +117,6 @@ class RosVerticle : AbstractVerticle() {
 
     override fun asyncStart(): Uni<Void> {
 
-        maxThread = config().getInteger("maxThread")
         rosFwadrKey = config().getString("rosFwadrKey")
 
         socketFactory = AsyncSocketFactory(vertx, netClientOptionsOf(
@@ -127,8 +125,7 @@ class RosVerticle : AbstractVerticle() {
         apiConnectionOptions = ApiConnectionOptions(
             username = config().getString("rosUser"),
             password = config().getString("rosPwd"),
-            host = config().getString("rosIp"),
-            idleTimeout = config().getInteger("rosIdle")
+            host = config().getString("rosIp")
         )
 
         val eb = vertx.eventBus()
