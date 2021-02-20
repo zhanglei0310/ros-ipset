@@ -67,7 +67,7 @@ open class RxApiConnection(val vertx: Vertx, val host: String): AutoCloseable {
                 cancel(tag)
                 em.fail(ApiTimeoutException("Command timed out after $timeout ms: $it"))
             }
-            log.debug("启动了定时器$timerId")
+            // log.debug("启动了定时器$timerId")
 
             val listener = object:ResponseListener {
                 var sent = false
@@ -158,7 +158,7 @@ open class RxApiConnection(val vertx: Vertx, val host: String): AutoCloseable {
             buffer.appendByte(0x00)
 
             sock.write(buffer).subscribe().with {
-                log.debug("命令已发送")
+                // log.debug("命令已发送")
             }
         } catch (ex: UnsupportedEncodingException) {
             throw ApiDataException(ex.message, ex)
