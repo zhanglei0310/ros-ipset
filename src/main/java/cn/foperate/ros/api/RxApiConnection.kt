@@ -3,23 +3,50 @@ package cn.foperate.ros.api
 import cn.foperate.ros.munity.AsyncSocketFactory
 import io.smallrye.mutiny.Multi
 import io.smallrye.mutiny.Uni
+import io.vertx.mutiny.core.Promise
 import io.vertx.mutiny.core.Vertx
 import io.vertx.mutiny.core.buffer.Buffer
 import io.vertx.mutiny.core.net.NetSocket
+import org.apache.commons.codec.binary.Hex
 import org.apache.commons.codec.digest.DigestUtils
 import org.slf4j.LoggerFactory
 import java.io.IOException
 import java.io.UnsupportedEncodingException
 import java.net.UnknownHostException
-import org.apache.commons.codec.binary.Hex
 
-open class RxApiConnection(val vertx: Vertx): AutoCloseable {
+open class RxApiConnection(val vertx: Vertx, val host: String): AutoCloseable {
 
-    var connected = false
+    enum class ConnectionState {
+        Connecting,
+        Connected,
+        Disconnected
+    }
+    private var state = ConnectionState.Connecting
+    fun isOnline() = state!=ConnectionState.Disconnected
+    private val pending = Promise.promise<Boolean>()
+
     private lateinit var sock: NetSocket
     private var _tag = 0
-    private lateinit var responser: Responser
     var timeout = DEFAULT_COMMAND_TIMEOUT
+
+    private val defaultListener = object:ResponseListener {
+        override fun receive(result: Response) {
+            log.debug(result.toString())
+        }
+
+        override fun error(ex: MikrotikApiException) {
+            log.error(ex.message, ex)
+            if (ex !is ApiCommandException) {
+                close()
+            }
+        }
+
+        override fun completed(result: Response) {
+            log.debug(result.toString())
+        }
+    }
+    // Responser在建立对象时就随之建立，准备处理任何后续的命令返回
+    private val responser: Responser = Responser(defaultListener)
 
     private fun nextTag(): String {
         _tag++
@@ -27,7 +54,8 @@ open class RxApiConnection(val vertx: Vertx): AutoCloseable {
     }
 
     fun cancel(tag: String) {
-        executeAsMulti(Command("/cancel tag=$tag")).subscribe().with {  }
+        executeAsUni(Command("/cancel tag=$tag")).subscribe().with {  }
+        responser.forget(tag)
     }
 
     open fun executeAsUni(cmd: Command, timeout: Int = this.timeout):Uni<Map<String, String>> {
@@ -46,12 +74,14 @@ open class RxApiConnection(val vertx: Vertx): AutoCloseable {
                 override fun receive(result: Response) {
                     vertx.cancelTimer(timerId)
                     em.complete(result.data)
+                    responser.forget(tag)
                     sent = true
                 }
 
                 override fun error(ex: MikrotikApiException) {
                     vertx.cancelTimer(timerId)
                     em.fail(ex)
+                    responser.forget(tag)
                 }
 
                 override fun completed(result: Response) {
@@ -61,6 +91,7 @@ open class RxApiConnection(val vertx: Vertx): AutoCloseable {
                     } else if (!sent) {
                         em.complete(mapOf())
                     }
+                    responser.forget(tag)
                 }
             }
             execute(cmd, listener)
@@ -87,6 +118,7 @@ open class RxApiConnection(val vertx: Vertx): AutoCloseable {
                 override fun error(ex: MikrotikApiException) {
                     vertx.cancelTimer(timerId)
                     em.fail(ex)
+                    responser.forget(tag)
                 }
 
                 override fun completed(result: Response) {
@@ -95,23 +127,32 @@ open class RxApiConnection(val vertx: Vertx): AutoCloseable {
                         em.emit(result.data)
                     }
                     em.complete()
+                    responser.forget(tag)
                 }
             }
             execute(cmd, listener)
         }
     }
 
+    /****
+     * 实际的命令处理请求，包括Multi请求和Uni请求。
+     * 此时，命令应该已经包括了对应的tag信息。
+     */
     @Throws(MikrotikApiException::class)
     private fun execute(cmd: Command, lis: ResponseListener): String {
-        //listeners[tag] = lis
         responser.waiting(cmd.tag, lis)
         try {
             val buffer = Buffer.buffer()
             cmd.toSentence().forEach {
-                log.debug(it)
+                // log.debug(it)
                 val bytes = it.toByteArray()
-                assert(bytes.size<128)
-                buffer.appendByte(bytes.size.toByte())
+                assert(bytes.size<0x4000) // 根据分析，命令中单个word有16384的长度已经足够了
+                if (bytes.size<128) {
+                    buffer.appendByte(bytes.size.toByte())
+                } else if (bytes.size<0x4000) {
+                    val len = bytes.size or 0x8000
+                    buffer.appendShort(len.toShort())
+                }
                 buffer.appendBytes(bytes)
             }
             buffer.appendByte(0x00)
@@ -128,7 +169,6 @@ open class RxApiConnection(val vertx: Vertx): AutoCloseable {
     }
 
     fun login(username: String, password: String): Uni<Map<String, String>> {
-        //return Uni.createFrom().emitter { emitter ->
         if (username.trim { it <= ' ' }.isEmpty()) {
             return Uni.createFrom().failure(ApiConnectionException("API username cannot be empty"))
         }
@@ -171,33 +211,11 @@ open class RxApiConnection(val vertx: Vertx): AutoCloseable {
     fun open(host: String, port: Int, fact: AsyncSocketFactory, timeout: Int=30):Uni<Void> {
         return Uni.createFrom().emitter { emitter ->
             fact.createSocket(host, port).subscribe().with ({
-                log.info("已连接到服务器")
-                this.connected = true
+                log.debug("已连接到服务器")
+                this.state = ConnectionState.Connected
                 this.sock = it
                 this.timeout = timeout
-                it.closeHandler {
-                    connected = false
-                }
-                //this.processor = Processor()
-                //this.reader = Reader()
-                responser = Responser(defaultListener = object:ResponseListener {
-                    override fun receive(result: Response) {
-                        log.debug(result.toString())
-                    }
 
-                    override fun error(ex: MikrotikApiException) {
-                        log.error(ex.message, ex)
-                        if (ex !is ApiCommandException) {
-                            connected = false
-                            it.closeAndForget()
-                        }
-                    }
-
-                    override fun completed(result: Response) {
-                        log.debug(result.toString())
-                    }
-
-                })
                 Multi.createFrom().emitter<List<String>> { em ->
                     val parser = ProtocolParser(emitter = em)
                     it.handler(parser)
@@ -207,14 +225,14 @@ open class RxApiConnection(val vertx: Vertx): AutoCloseable {
                     }
                     it.exceptionHandler { e ->
                         parser.handleException(e)
-                        connected = false
+                        state = ConnectionState.Connected
                         it.closeAndForget()
                     }
                     emitter.complete(null)
                 }.subscribe().with(responser)
             }) {
                 log.error(it.toString(), it.message)
-                connected = false
+                close()
                 if (it is UnknownHostException) {
                     emitter.fail(ApiConnectionException("Unknown host $host", it))
                 } else {
@@ -227,16 +245,17 @@ open class RxApiConnection(val vertx: Vertx): AutoCloseable {
         }
     }
 
-    override fun close() {
-        if (!connected) {
-            throw ApiConnectionException("Not/no longer connected to remote Mikrotik")
-        }
-        connected = false
 
-        try {
-            sock.close().subscribe().with {  }
-        } catch (ex: IOException) {
-            throw ApiConnectionException("Error closing socket: ${ex.message}", ex)
+    override fun close() {
+        log.debug("收到Close请求")
+        if (isOnline()) { // 避免重复被关闭
+            // Exception().printStackTrace()
+            state = ConnectionState.Disconnected
+            try {
+                sock.close().subscribe().with {  }
+            } catch (ex: IOException) {
+                throw ApiConnectionException("Error closing socket: ${ex.message}", ex)
+            }
         }
     }
 
@@ -250,6 +269,7 @@ open class RxApiConnection(val vertx: Vertx): AutoCloseable {
 
         /**
          * default TCP TLS port used by Mikrotik API
+         * for the moment, TLS connection is not supported
          */
         const val DEFAULT_TLS_PORT = 8729
 
@@ -263,26 +283,50 @@ open class RxApiConnection(val vertx: Vertx): AutoCloseable {
          */
         const val DEFAULT_COMMAND_TIMEOUT = 60000
 
+        private var activeConnection: RxApiConnection? = null
+
         /**
-         * Create a new API connection to the give device on the supplied port
+         * Return the connection if available , or create a new API connection to the give device on the supplied port
          *
          * @param fact The socket factory used to construct the connection socket.
-         * @param host The host to which to connect.
-         * @param port The TCP port to use.
-         * @return The ApiConnection
-         * @throws ApiConnectionException Thrown if there is a
+         * @param options Optons for this ApiConnection
+         * @return The ApiConnection Future
+         * @throws ApiConnectionException Thrown if there is any, guess mostly server ip error
          * problem connecting
          */
         @Throws(ApiConnectionException::class)
-        fun connect(fact: AsyncSocketFactory, host: String, port: Int = DEFAULT_PORT): Uni<RxApiConnection> {
-            val con = RxApiConnection(fact.vertx)
+        fun connection(fact: AsyncSocketFactory, options: ApiConnectionOptions): Uni<RxApiConnection> {
+            if (activeConnection!=null && activeConnection!!.isOnline()) {
+                require(options.host== activeConnection!!.host) {
+                    "Wrong usage, try another API"
+                }
+                val connection = activeConnection as RxApiConnection
+                return Uni.createFrom().emitter { em ->
+                    connection.pending.future()
+                        .subscribe().with { re ->
+                            if (re) {
+                                em.complete(connection)
+                            } else {
+                                em.fail(ApiConnectionException("服务器连接失败"))
+                            }
+                        }
+                }
+            }
+
+            activeConnection = RxApiConnection(fact.vertx, options.host)
             return Uni.createFrom().emitter { em ->
-                con.open(host, port, fact)
-                    .subscribe().with ({
-                        em.complete(con)
+                val conn = activeConnection as RxApiConnection
+                conn.open(options.host, options.port, fact)
+                    .onItem().transformToUni { _ ->
+                        conn.login(options.username, options.password)
+                    }.subscribe().with ({
+                        log.info("Login successed")
+                        em.complete(conn)
+                        conn.pending.complete(true)
                     }) {
-                       log.error(it.message)
+                        log.error(it.message)
                         em.fail(it)
+                        conn.pending.complete(false)
                     }
             }
         }

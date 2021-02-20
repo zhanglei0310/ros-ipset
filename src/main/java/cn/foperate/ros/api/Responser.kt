@@ -9,6 +9,7 @@ class Responser(val defaultListener: ResponseListener): Consumer<List<String>> {
     private val listeners = mutableMapOf<String, ResponseListener>()
 
     fun waiting(tag: String, listener: ResponseListener) = listeners.put(tag, listener)
+    fun forget(tag: String) = listeners.remove(tag)
 
     override fun accept(list: List<String>) {
         // 实际上在这里已经知道每个sentence的作用，所以需要首先把sentence解析出来

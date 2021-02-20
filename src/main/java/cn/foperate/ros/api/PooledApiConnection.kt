@@ -9,7 +9,8 @@ import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.random.Random
 
-class PooledApiConnection(vertx: Vertx): RxApiConnection(vertx) {
+@Deprecated("RouterOS API support parallel commonds, so a tcp link is enough for work")
+class PooledApiConnection(vertx: Vertx, host:String): RxApiConnection(vertx, host) {
 
     private val key = Random.nextLong()
     private var using = false
@@ -17,7 +18,7 @@ class PooledApiConnection(vertx: Vertx): RxApiConnection(vertx) {
 
     override fun close() {
         using = false
-        if (connected) {
+        if (isOnline()) {
             returnConnection(this)
         } else {
             log.debug("已经关闭的连接被逐出连接池")
@@ -58,7 +59,7 @@ class PooledApiConnection(vertx: Vertx): RxApiConnection(vertx) {
 
                 connPool.poll()?.let {
                     if (it.idleTime > System.currentTimeMillis() - 30000) {
-                        if (it.connected) it.forceClose()
+                        if (it.isOnline()) it.forceClose()
                         connMap.remove(it.key)
                     }
                 }
@@ -66,7 +67,7 @@ class PooledApiConnection(vertx: Vertx): RxApiConnection(vertx) {
 
             // 去掉不正常的等待连接，应该是没有任何作用
             connMap.filter { !connPool.contains(it.value) }
-                .filter { !it.value.using || !it.value.connected }
+                .filter { !it.value.using || !it.value.isOnline() }
                 .map { it.key }
                 .forEach { connMap.remove(it) }
         }
@@ -91,7 +92,7 @@ class PooledApiConnection(vertx: Vertx): RxApiConnection(vertx) {
                     return@emitter
                 }
 
-                val conn = PooledApiConnection(fact.vertx)
+                val conn = PooledApiConnection(fact.vertx, options.host)
 
                 conn.open(options.host, options.port, fact, options.idleTimeout)
                     .onItem().transformToUni { _ ->

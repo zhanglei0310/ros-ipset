@@ -33,7 +33,7 @@ class ProtocolParser(val emitter: MultiEmitter<in List<String>>): Handler<Buffer
         buff = if (buff.length()==0) {
             buffer
         } else {
-            Buffer.buffer(buff.byteBuf).appendBuffer(buffer)
+            Buffer.buffer(buff.bytes).appendBuffer(buffer)
         }
 
         try {
@@ -75,39 +75,43 @@ class ProtocolParser(val emitter: MultiEmitter<in List<String>>): Handler<Buffer
         if (buffer.length()==0) return false
 
         var len = buffer.getUnsignedByte(0).toInt()
-        val head = when {
-            len and 0xC0 == 0x80 -> {
-                len = buffer.getUnsignedShort(0) and 0x8000.inv()
-                2
+        try {
+            val head = when {
+                len and 0xC0 == 0x80 -> {
+                    len = buffer.getUnsignedShort(0) and 0x8000.inv()
+                    2
+                }
+                len and 0xE0 == 0xC0 -> {
+                    len = buffer.getUnsignedMedium(0) and 0xC00000.inv()
+                    3
+                }
+                len and 0xF0 == 0xE0 -> {
+                    len = buffer.getInt(0) or 0x0FFFFFFF
+                    4
+                }
+                len == 0xF0 -> {
+                    len = buffer.getInt(1)
+                    5
+                }
+                // FIXME 该控制字符为保留使用状态，将来有可能合法化
+                len >= 0xF8 -> throw ApiDataException("Reversed Control Byte")
+                else -> 1
             }
-            len and 0xE0 == 0xC0 -> {
-                len = buffer.getUnsignedMedium(0) and 0xC00000.inv()
-                3
+            return when{
+                (buffer.length()>len+head) -> {
+                    event = buffer.slice(head, len+head)
+                    buff = buffer.slice(len+head, buffer.length())
+                    true
+                }
+                (buffer.length()==len+head) ->{
+                    event = buffer.slice(head, len+head)
+                    buff = EMPTY_BUFFER
+                    true
+                }
+                else ->false
             }
-            len and 0xF0 == 0xE0 -> {
-                len = buffer.getInt(0) or 0x0FFFFFFF
-                4
-            }
-            len == 0xF0 -> {
-                len = buffer.getInt(1)
-                5
-            }
-            // FIXME 该控制字符为保留使用状态，将来有可能合法化
-            len >= 0xF8 -> throw ApiDataException("Reversed Control Byte")
-            else -> 1
-        }
-        return when{
-            (buffer.length()>len+head) -> {
-                event = buffer.slice(head, len+head)
-                buff = buffer.slice(len+head, buffer.length())
-                true
-            }
-            (buffer.length()==len+head) ->{
-                event = buffer.slice(head, len+head)
-                buff = EMPTY_BUFFER
-                true
-            }
-            else ->false
+        } catch (ex: Exception) { // 甚至无法完成连接长度数据的提取
+            return false
         }
     }
 

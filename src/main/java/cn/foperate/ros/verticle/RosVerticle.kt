@@ -2,7 +2,7 @@ package cn.foperate.ros.verticle
 
 import cn.foperate.ros.api.ApiConnectionOptions
 import cn.foperate.ros.api.Command
-import cn.foperate.ros.api.PooledApiConnection
+import cn.foperate.ros.api.RxApiConnection
 import cn.foperate.ros.munity.AsyncSocketFactory
 import cn.foperate.ros.pac.DomainUtil
 import com.google.common.cache.CacheBuilder
@@ -27,7 +27,7 @@ class RosVerticle : AbstractVerticle() {
     private fun executeCommandAsMulti(command: Command): Multi<Map<String, String>> {
         // 二度封装Multi有两个原因：borrowObject本身有可能失败，以及考虑在出现错误时关闭api连接
         return Multi.createFrom().emitter { emitter ->
-            PooledApiConnection.connect(socketFactory, apiConnectionOptions)
+            RxApiConnection.connection(socketFactory, apiConnectionOptions)
                 .subscribe().with { apiConnection ->
                     apiConnection.executeAsMulti(command)
                         .onItem().invoke { item ->
@@ -42,7 +42,7 @@ class RosVerticle : AbstractVerticle() {
                             mapOf()
                         }.subscribe().with {
                             // 如果之前出现了执行错误，在return时，连接会被回收
-                            apiConnection.close()
+                            //apiConnection.close()
                         }
                 }
         }
@@ -50,7 +50,7 @@ class RosVerticle : AbstractVerticle() {
 
     private fun executeCommandAsUni(command: Command): Uni<Map<String, String>> {
         return Uni.createFrom().emitter { emitter ->
-            PooledApiConnection.connect(socketFactory, apiConnectionOptions)
+            RxApiConnection.connection(socketFactory, apiConnectionOptions)
                 .subscribe().with { apiConnection ->
                     apiConnection.executeAsUni(command)
                         .onItem().invoke { item ->
@@ -62,7 +62,7 @@ class RosVerticle : AbstractVerticle() {
                             mapOf()
                         }.subscribe().with {
                             // 如果之前出现了执行错误，在return时，连接会被回收
-                            apiConnection.close()
+                            //apiConnection.close()
                         }
                 }
         }
@@ -153,10 +153,6 @@ class RosVerticle : AbstractVerticle() {
                         message.reply(System.currentTimeMillis())
                     }
             }
-
-        vertx.setPeriodic(5000L) {
-            PooledApiConnection.evite()
-        }
 
         return loadCache()
     }

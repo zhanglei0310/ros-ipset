@@ -14,9 +14,9 @@ object AsyncClient
 
         val vertx = Vertx.vertx()
         val sf = AsyncSocketFactory(vertx, netClientOptionsOf(
-            connectTimeout = 3000
+            connectTimeout = RxApiConnection.DEFAULT_CONNECTION_TIMEOUT
         ))
-        PooledApiConnection.connect(sf, apiConnectionOptionsOf(
+        RxApiConnection.connection(sf, apiConnectionOptionsOf(
             host = "192.168.28.1",
             username = "jdns",
             password = "Ocwesw2r3"
@@ -26,9 +26,11 @@ object AsyncClient
                 "list" to "PROXY"
             ), props = listOf("address","timeout")) //,q where  return address,timeout"
             conn.executeAsMulti(command)
+                .onCompletion().invoke {
+                    conn.close()
+                }
                 .subscribe().with {
                     log.debug(it.toString())
-                    conn.close()
                 }
             }){
                 log.error(it.toString())
