@@ -1,8 +1,6 @@
 package cn.foperate.ros.api
 
-import io.vertx.core.Handler
 import org.slf4j.LoggerFactory
-import java.lang.Exception
 import java.util.function.Consumer
 
 // 从sentence中读取结果的类，计划使用状态机来实现

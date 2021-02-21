@@ -46,7 +46,7 @@ class DnsVeticle: AbstractVerticle() {
         serverSocket.listen(localPort, "0.0.0.0")
             .subscribe().with { ss ->
                 this.serverSocket = ss
-                ss.toMulti().subscribe().with { request ->
+                ss.toMulti().subscribe().with reply@{ request ->
                     val message = Message(request.data().bytes)
                     val questionName = message.question.name.toString()
                     val questionType = message.question.type
@@ -57,8 +57,8 @@ class DnsVeticle: AbstractVerticle() {
                         answer.header.id = message.header.id
                         val buffer = Buffer.buffer(answer.toWire())
                         ss.send(buffer, request.sender().port(), request.sender().host())
-                            .subscribe().with { }
-                        return@with
+                            .subscribe().with {}
+                        return@reply
                     }
                     if (questionType==Type.A) when {
                         DomainUtil.match(questionName) -> {
@@ -69,7 +69,7 @@ class DnsVeticle: AbstractVerticle() {
                             log.debug("adBlock matched")
                             val reply = blockMessage(message)
                             ss.send(Buffer.buffer(reply), request.sender().port(), request.sender().host())
-                                .subscribe().with { }
+                                .subscribe().with {}
                         }
                         else -> forwardToFallback(request, questionName)
                     } else {
@@ -109,7 +109,7 @@ class DnsVeticle: AbstractVerticle() {
                 clientSocket.toMulti().subscribe().with { response ->
                     // Fallback服务当作不可信信息，不操作IPset列表
                     serverSocket.send(response.data(), request.sender().port(), request.sender().host())
-                        .subscribe().with {}
+                        .subscribe().with { }
                     clientSocket.closeAndForget()
                     resultCache.put(name, response.data())
                 }
@@ -140,7 +140,9 @@ class DnsVeticle: AbstractVerticle() {
         log.debug("remote answer -> id: $messageId, ips: $aRecordIps")
 
         serverSocket.send(response.data(), request.sender().port(), request.sender().host())
-            .subscribe().with {}
+            .subscribe().with {
+                log.debug("answers sent")
+            }
         val finalTime = System.currentTimeMillis()
         log.debug("reply complete, used ${finalTime - time}ms")
 
@@ -153,7 +155,9 @@ class DnsVeticle: AbstractVerticle() {
             ).subscribe().with({
                 val usingTime = System.currentTimeMillis() - finalTime
                 log.debug("gfwlist check task complete, used ${usingTime}ms")
-            }) {}
+            }) { e ->
+                log.error(e.message, e)
+            }
         }
     }
 
