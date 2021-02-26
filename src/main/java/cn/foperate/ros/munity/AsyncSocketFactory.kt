@@ -2,9 +2,7 @@ package cn.foperate.ros.munity
 
 import io.smallrye.mutiny.Uni
 import io.vertx.core.net.NetClientOptions
-import io.vertx.kotlin.core.net.netClientOptionsOf
 import io.vertx.mutiny.core.Vertx
-import io.vertx.mutiny.core.net.NetClient
 import io.vertx.mutiny.core.net.NetSocket
 
 class AsyncSocketFactory(val vertx:Vertx, val options: NetClientOptions) {

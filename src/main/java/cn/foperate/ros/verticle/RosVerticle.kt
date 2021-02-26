@@ -14,6 +14,10 @@ import io.vertx.kotlin.core.net.netClientOptionsOf
 import org.slf4j.LoggerFactory
 import java.util.concurrent.TimeUnit
 
+/****
+ * 目前由Mutiny能够提供更加清晰的流式处理，改用kotlin实现的意义不太大
+ * @author Aston Mei
+ */
 class RosVerticle : AbstractVerticle() {
     private lateinit var rosFwadrKey: String
 
@@ -153,11 +157,6 @@ class RosVerticle : AbstractVerticle() {
 
         return loadCache()
     }
-
-    /*override fun asyncStop(): Uni<Void> {
-        evictTimer.cancel()
-        return Uni.createFrom().voidItem()
-    }*/
 
     companion object {
         private val log = LoggerFactory.getLogger(RosVerticle::class.java.name)
