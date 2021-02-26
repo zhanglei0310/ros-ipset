@@ -6,13 +6,13 @@
 
     <groupId>me.foperate</groupId>
     <artifactId>ros-ipset</artifactId>
-    <version>1.1.0</version>
+    <version>1.1.1</version>
 
     <properties>
-        <kotlin.version>1.4.10</kotlin.version>
+        <kotlin.version>1.4.30</kotlin.version>
         <kotlin.compiler.jvmTarget>1.8</kotlin.compiler.jvmTarget>
-        <mutiny.version>2.0.0</mutiny.version>
-        <vertx.version>4.0.0</vertx.version>
+        <mutiny.version>2.1.1</mutiny.version>
+        <vertx.version>4.0.2</vertx.version>
         <main.class>cn.foperate.ros.IPset</main.class>
         <graalvm.version>21.0.0.2</graalvm.version>
     </properties>
@@ -41,6 +41,12 @@
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
             <version>30.1-jre</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <!-- https://mvnrepository.com/artifact/commons-codec/commons-codec -->
         <dependency>
@@ -72,7 +78,7 @@
         </dependency>
         <dependency>
             <groupId>io.vertx</groupId>
-            <artifactId>vertx-mysql-client</artifactId>
+            <artifactId>vertx-lang-kotlin-coroutines</artifactId>
             <version>${vertx.version}</version>
         </dependency>
         <dependency>
@@ -115,6 +121,7 @@
                 <version>3.1.2</version>
                 <configuration>
                     <outputDirectory>docker/libs</outputDirectory>
+                    <includeScope>runtime</includeScope>
                 </configuration>
             </plugin>
             <plugin>
@@ -158,6 +165,11 @@
                 <groupId>org.jetbrains.kotlin</groupId>
                 <artifactId>kotlin-maven-plugin</artifactId>
                 <version>${kotlin.version}</version>
+                <configuration>
+                    <args>
+                        <arg>-Xuse-ir</arg>
+                    </args>
+                </configuration>
                 <executions>
                     <execution>
                         <id>compile</id>
