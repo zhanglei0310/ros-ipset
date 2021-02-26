@@ -9,10 +9,10 @@
     <version>1.1.1-SNAPSHOT</version>
 
     <properties>
-        <kotlin.version>1.4.10</kotlin.version>
+        <kotlin.version>1.4.30</kotlin.version>
         <kotlin.compiler.jvmTarget>1.8</kotlin.compiler.jvmTarget>
-        <mutiny.version>2.0.0</mutiny.version>
-        <vertx.version>4.0.0</vertx.version>
+        <mutiny.version>2.1.1</mutiny.version>
+        <vertx.version>4.0.2</vertx.version>
         <main.class>cn.foperate.ros.IPset</main.class>
         <graalvm.version>21.0.0.2</graalvm.version>
     </properties>
@@ -74,6 +74,11 @@
         <dependency>
             <groupId>io.vertx</groupId>
             <artifactId>vertx-lang-kotlin</artifactId>
+            <version>${vertx.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.vertx</groupId>
+            <artifactId>vertx-lang-kotlin-coroutines</artifactId>
             <version>${vertx.version}</version>
         </dependency>
         <dependency>
@@ -160,6 +165,11 @@
                 <groupId>org.jetbrains.kotlin</groupId>
                 <artifactId>kotlin-maven-plugin</artifactId>
                 <version>${kotlin.version}</version>
+                <configuration>
+                    <args>
+                        <arg>-Xuse-ir</arg>
+                    </args>
+                </configuration>
                 <executions>
                     <execution>
                         <id>compile</id>

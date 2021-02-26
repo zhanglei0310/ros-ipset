@@ -3,7 +3,7 @@ package cn.foperate.ros
 import ch.qos.logback.classic.LoggerContext
 import ch.qos.logback.classic.joran.JoranConfigurator
 import cn.foperate.ros.pac.DomainUtil
-import cn.foperate.ros.verticle.DnsVeticle
+import cn.foperate.ros.verticle.DnsVerticle
 import cn.foperate.ros.verticle.RosVerticle
 import io.vertx.core.VertxOptions
 import io.vertx.core.logging.SLF4JLogDelegateFactory
@@ -126,7 +126,8 @@ object IPset {
         logger.info("GFWList load completed")
 
         val vertx = Vertx.vertx(VertxOptions())
-        vertx.deployVerticle(RosVerticle(), deploymentOptionsOf(
+        vertx.deployVerticle(
+            RosVerticle(), deploymentOptionsOf(
             config = jsonObjectOf(
                 "rosFwadrKey" to rosFwadrKey,
                 "rosIp" to rosIp,
@@ -137,7 +138,8 @@ object IPset {
             logger.error(e.message)
             vertx.close().subscribeAsCompletionStage()
         }.subscribe().with {  }
-        vertx.deployVerticle(DnsVeticle(), deploymentOptionsOf(
+        vertx.deployVerticle(
+            DnsVerticle(), deploymentOptionsOf(
             config = jsonObjectOf(
                 "remotePort" to remotePort,
                 "remote" to remote,

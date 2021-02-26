@@ -16,7 +16,12 @@ import java.net.InetAddress
 import java.util.concurrent.TimeUnit
 import kotlin.streams.toList
 
-
+/****
+ * 进行DNS过滤、解析和转发。
+ * @author Aston Mei
+ * @since 2021-02-26
+ */
+@Deprecated("改由协程方式实现")
 class DnsVeticle: AbstractVerticle() {
 
     private var localPort: Int = 53  // DNS服务监听的端口
