@@ -8,17 +8,20 @@ import cn.foperate.ros.pac.DomainUtil
 import com.google.common.cache.CacheBuilder
 import io.smallrye.mutiny.Multi
 import io.smallrye.mutiny.Uni
-import io.smallrye.mutiny.vertx.core.AbstractVerticle
+import io.smallrye.mutiny.coroutines.awaitSuspending
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.core.net.netClientOptionsOf
+import io.vertx.kotlin.coroutines.CoroutineVerticle
 import org.slf4j.LoggerFactory
 import java.util.concurrent.TimeUnit
 
 /****
- * 目前由Mutiny能够提供更加清晰的流式处理，改用kotlin实现的意义不太大
+ * 目前由Mutiny能够提供更加清晰的流式处理，
+ * kotlin协程的flow实现是参考响应式流实现的，但清晰度不如mutiny，
+ * 又需要涉及到上下文切换，修改的意义不太大。但是verticle实现回复到标准实现
  * @author Aston Mei
  */
-class RosVerticle : AbstractVerticle() {
+class RosVerticle: CoroutineVerticle() {
     private lateinit var rosFwadrKey: String
 
     private val cache = CacheBuilder.newBuilder()
@@ -119,43 +122,41 @@ class RosVerticle : AbstractVerticle() {
             }
     }*/
 
-    override fun asyncStart(): Uni<Void> {
+    override suspend fun start() {
 
-        rosFwadrKey = config().getString("rosFwadrKey")
+        rosFwadrKey = config.getString("rosFwadrKey")
 
         socketFactory = AsyncSocketFactory(vertx, netClientOptionsOf(
             connectTimeout = 3000
         ))
         apiConnectionOptions = ApiConnectionOptions(
-            username = config().getString("rosUser"),
-            password = config().getString("rosPwd"),
-            host = config().getString("rosIp")
+            username = config.getString("rosUser"),
+            password = config.getString("rosPwd"),
+            host = config.getString("rosIp")
         )
 
         val eb = vertx.eventBus()
 
-        eb.localConsumer<JsonObject>(EVENT_ADDRESS).toMulti()
-            .subscribe().with { message ->
-                val jsonObject = message.body()
-                val domain = jsonObject.getString("domain")
-                val address = jsonObject.getJsonArray("address")
-                Multi.createFrom().items(address.stream())
-                    .filter {
-                        it as String
-                        cache.getIfPresent(it)?.let { timeout ->
-                            timeout < System.currentTimeMillis()
-                        } ?: true
-                    }.onItem().transformToUniAndMerge { ip ->
-                        ip as String
-                        sendAddRequest(ip, domain)
-                    }
-                    .collect().last()
-                    .subscribe().with {
-                        message.reply(System.currentTimeMillis())
-                    }
-            }
-
-        return loadCache()
+        eb.localConsumer<JsonObject>(EVENT_ADDRESS).handler { message ->
+            val jsonObject = message.body()
+            val domain = jsonObject.getString("domain")
+            val address = jsonObject.getJsonArray("address")
+            Multi.createFrom().items(address.stream())
+                .filter {
+                    it as String
+                    cache.getIfPresent(it)?.let { timeout ->
+                        timeout < System.currentTimeMillis()
+                    } ?: true
+                }.onItem().transformToUniAndMerge { ip ->
+                    ip as String
+                    sendAddRequest(ip, domain)
+                }
+                .collect().last()
+                .subscribe().with {
+                    message.reply(System.currentTimeMillis())
+                }
+        }
+        loadCache().awaitSuspending()
     }
 
     companion object {

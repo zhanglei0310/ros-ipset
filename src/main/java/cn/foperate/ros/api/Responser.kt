@@ -1,16 +1,21 @@
 package cn.foperate.ros.api
 
+import io.smallrye.mutiny.subscription.MultiEmitter
 import org.slf4j.LoggerFactory
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import java.util.function.Consumer
 
 // 从sentence中读取结果的类，计划使用状态机来实现
-class Responser(val defaultListener: ResponseListener): Consumer<List<String>> {
+// 同时提供被动和主动两个实现
+class Responser(val defaultListener: ResponseListener): Consumer<List<String>>, MultiEmitter<List<String>> {
 
     private val listeners = mutableMapOf<String, ResponseListener>()
 
     fun waiting(tag: String, listener: ResponseListener) = listeners.put(tag, listener)
     fun forget(tag: String) = listeners.remove(tag)
 
+    // 作为订阅者的实现，是一个被动的实现
     override fun accept(list: List<String>) {
         // 实际上在这里已经知道每个sentence的作用，所以需要首先把sentence解析出来
         val response = Response.fromList(list)
@@ -51,6 +56,52 @@ class Responser(val defaultListener: ResponseListener): Consumer<List<String>> {
         listeners.values.forEach {
             it.error(ex)
         }
+    }
+
+    // 作为发射器的实现（主动实现）
+    override fun emit(list: List<String>): MultiEmitter<List<String>> {
+        accept(list)
+        return this
+    }
+
+    override fun fail(ex: Throwable) {
+        handleError(ex)
+        fireTermination()
+    }
+
+    override fun complete() {
+        val ex = ApiConnectionException("意料之外的流完成")
+
+        // 通知所有的监听器已经完成工作
+        defaultListener.error(ex)
+        listeners.values.forEach {
+            it.error(ex)
+        }
+
+        // 如果有附加任务
+        fireTermination()
+    }
+
+    private fun fireTermination() {
+        if (terminated.compareAndSet(false, true)) {
+            val runnable = onTermination.getAndSet(null)
+            runnable?.run()
+        }
+    }
+
+    private val onTermination: AtomicReference<Runnable> = AtomicReference()
+    override fun onTermination(task: Runnable): MultiEmitter<List<String>> {
+        onTermination.set(task)
+        return this
+    }
+
+    private val terminated = AtomicBoolean()
+    override fun isCancelled(): Boolean {
+        return this.terminated.get()
+    }
+
+    override fun requested(): Long {
+        return this.listeners.size.toLong()
     }
 
     companion object {

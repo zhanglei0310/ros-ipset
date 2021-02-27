@@ -3,10 +3,10 @@ package cn.foperate.ros.api
 import cn.foperate.ros.munity.AsyncSocketFactory
 import io.smallrye.mutiny.Multi
 import io.smallrye.mutiny.Uni
-import io.vertx.mutiny.core.Promise
-import io.vertx.mutiny.core.Vertx
-import io.vertx.mutiny.core.buffer.Buffer
-import io.vertx.mutiny.core.net.NetSocket
+import io.vertx.core.Vertx
+import io.vertx.core.buffer.Buffer
+import io.vertx.core.net.NetSocket
+import io.vertx.core.Promise
 import org.apache.commons.codec.binary.Hex
 import org.apache.commons.codec.digest.DigestUtils
 import org.slf4j.LoggerFactory
@@ -157,9 +157,8 @@ open class RxApiConnection(val vertx: Vertx, val host: String): AutoCloseable {
             }
             buffer.appendByte(0x00)
 
-            sock.write(buffer).subscribe().with {
-                // log.debug("命令已发送")
-            }
+            // 唯一写数据的地方，由于其实并不对
+            sock.write(buffer)
         } catch (ex: UnsupportedEncodingException) {
             throw ApiDataException(ex.message, ex)
         } catch (ex: IOException) {
@@ -210,13 +209,28 @@ open class RxApiConnection(val vertx: Vertx, val host: String): AutoCloseable {
     @Throws(ApiConnectionException::class)
     fun open(host: String, port: Int, fact: AsyncSocketFactory, timeout: Int=30):Uni<Void> {
         return Uni.createFrom().emitter { emitter ->
-            fact.createSocket(host, port).subscribe().with ({
+            fact.createSocket(host, port).onSuccess {
                 log.debug("已连接到服务器")
                 this.state = ConnectionState.Connected
                 this.sock = it
                 this.timeout = timeout
 
-                Multi.createFrom().emitter<List<String>> { em ->
+                // 跳过emitter工厂方法，直接实现emitter的实例以简化实现
+                val parser = ProtocolParser(emitter = responser)
+                it.handler(parser)
+                it.closeHandler {
+                    parser.handleEnd()
+                    close()
+                }
+                it.exceptionHandler { e ->
+                    // 这里是一个网络错误，会被下面一条指令转换为ApiConnection错误并抛出
+                    parser.handleException(e)
+                    // 该错误将被responser处理，并导致RxApiConnection关闭
+                    // 无论如何，首先把TCP连接关掉
+                    it.close()
+                }
+                emitter.complete(null)
+                /*Multi.createFrom().emitter<List<String>> { em ->
                     val parser = ProtocolParser(emitter = em)
                     it.handler(parser)
                     it.closeHandler {
@@ -231,8 +245,8 @@ open class RxApiConnection(val vertx: Vertx, val host: String): AutoCloseable {
                         it.closeAndForget()
                     }
                     emitter.complete(null)
-                }.subscribe().with(responser, responser::handleError)
-            }) {
+                }.subscribe().with(responser, responser::handleError)*/
+            }.onFailure {
                 log.error(it.toString(), it.message)
                 close()
                 if (it is UnknownHostException) {
@@ -253,7 +267,7 @@ open class RxApiConnection(val vertx: Vertx, val host: String): AutoCloseable {
         if (isOnline()) { // 避免重复被关闭
             // Exception().printStackTrace()
             state = ConnectionState.Disconnected
-            sock.closeAndForget()
+            sock.close()
         }
     }
 
@@ -300,8 +314,7 @@ open class RxApiConnection(val vertx: Vertx, val host: String): AutoCloseable {
                 }
                 val connection = activeConnection as RxApiConnection
                 return Uni.createFrom().emitter { em ->
-                    connection.pending.future()
-                        .subscribe().with { re ->
+                    connection.pending.future().onSuccess { re ->
                             if (re) {
                                 em.complete(connection)
                             } else {

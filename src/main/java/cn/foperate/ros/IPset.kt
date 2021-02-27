@@ -5,11 +5,11 @@ import ch.qos.logback.classic.joran.JoranConfigurator
 import cn.foperate.ros.pac.DomainUtil
 import cn.foperate.ros.verticle.DnsVerticle
 import cn.foperate.ros.verticle.RosVerticle
+import io.vertx.core.Vertx
 import io.vertx.core.VertxOptions
 import io.vertx.core.logging.SLF4JLogDelegateFactory
 import io.vertx.kotlin.core.deploymentOptionsOf
 import io.vertx.kotlin.core.json.jsonObjectOf
-import io.vertx.mutiny.core.Vertx
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileInputStream
@@ -134,10 +134,10 @@ object IPset {
                 "rosUser" to rosUser,
                 "rosPwd" to rosPwd
             )
-        )).onFailure().invoke { e ->
+        )).onFailure { e ->
             logger.error(e.message)
-            vertx.close().subscribeAsCompletionStage()
-        }.subscribe().with {  }
+            vertx.close()
+        }
         vertx.deployVerticle(
             DnsVerticle(), deploymentOptionsOf(
             config = jsonObjectOf(
@@ -147,7 +147,7 @@ object IPset {
                 "fallback" to fallback,
                 "blockAddress" to blockAddress
             )
-        )).subscribe().with {  }
+        ))
 
         logger.info("server started")
     }
