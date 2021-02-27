@@ -1,6 +1,5 @@
 package cn.foperate.ros.api
 
-import cn.foperate.ros.munity.AsyncSocketFactory
 import io.smallrye.mutiny.Multi
 import io.smallrye.mutiny.Uni
 import io.vertx.core.Vertx
@@ -14,7 +13,16 @@ import java.io.IOException
 import java.io.UnsupportedEncodingException
 import java.net.UnknownHostException
 
-open class RxApiConnection(val vertx: Vertx, val host: String): AutoCloseable {
+/***
+ * Reactive Api for ROS
+ * ROS support parallel command in a single tcp connection.
+ * So just a single active connection object is actually required.
+ *
+ * This class also used as a Factory class of Api.
+ *
+ * @author Aston Mei
+ */
+class RxApiConnection(val vertx: Vertx, val host: String): AutoCloseable {
 
     enum class ConnectionState {
         Connecting,
@@ -46,7 +54,7 @@ open class RxApiConnection(val vertx: Vertx, val host: String): AutoCloseable {
         }
     }
     // Responser在建立对象时就随之建立，准备处理任何后续的命令返回
-    private val responser: Responser = Responser(defaultListener)
+    private val responser: ResponseEmitter = ResponseEmitter(defaultListener)
 
     private fun nextTag(): String {
         _tag++
@@ -58,7 +66,7 @@ open class RxApiConnection(val vertx: Vertx, val host: String): AutoCloseable {
         responser.forget(tag)
     }
 
-    open fun executeAsUni(cmd: Command, timeout: Int = this.timeout):Uni<Map<String, String>> {
+    fun executeAsUni(cmd: Command, timeout: Int = this.timeout):Uni<Map<String, String>> {
         return Uni.createFrom().emitter { em ->
             val tag = nextTag()
             cmd.tag = tag
@@ -98,7 +106,7 @@ open class RxApiConnection(val vertx: Vertx, val host: String): AutoCloseable {
         }
     }
 
-    open fun executeAsMulti(cmd: Command, timeout: Int = this.timeout): Multi<Map<String, String>> {
+    fun executeAsMulti(cmd: Command, timeout: Int = this.timeout): Multi<Map<String, String>> {
         return Multi.createFrom().emitter { em ->
             val tag = nextTag()
             cmd.tag = tag

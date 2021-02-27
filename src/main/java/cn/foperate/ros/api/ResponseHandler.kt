@@ -1,16 +1,17 @@
 package cn.foperate.ros.api
 
-import io.smallrye.mutiny.subscription.MultiEmitter
+import cn.foperate.ros.api.Response.State
 import org.slf4j.LoggerFactory
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicReference
 import java.util.function.Consumer
 
-// 从sentence中读取结果的类，计划使用状态机来实现
-// 同时提供被动和主动两个实现
-class Responser(val defaultListener: ResponseListener): Consumer<List<String>>, MultiEmitter<List<String>> {
+/***
+ * Responser的基础实现，单纯对所取得的数据消息的处理
+ * 从sentence中读取结果的类，使用状态机来实现
+ * @author Aston Mei
+ */
+open class ResponseHandler(val defaultListener: ResponseListener): Consumer<List<String>> {
 
-    private val listeners = mutableMapOf<String, ResponseListener>()
+    protected val listeners = mutableMapOf<String, ResponseListener>()
 
     fun waiting(tag: String, listener: ResponseListener) = listeners.put(tag, listener)
     fun forget(tag: String) = listeners.remove(tag)
@@ -58,54 +59,8 @@ class Responser(val defaultListener: ResponseListener): Consumer<List<String>>, 
         }
     }
 
-    // 作为发射器的实现（主动实现）
-    override fun emit(list: List<String>): MultiEmitter<List<String>> {
-        accept(list)
-        return this
-    }
-
-    override fun fail(ex: Throwable) {
-        handleError(ex)
-        fireTermination()
-    }
-
-    override fun complete() {
-        val ex = ApiConnectionException("意料之外的流完成")
-
-        // 通知所有的监听器已经完成工作
-        defaultListener.error(ex)
-        listeners.values.forEach {
-            it.error(ex)
-        }
-
-        // 如果有附加任务
-        fireTermination()
-    }
-
-    private fun fireTermination() {
-        if (terminated.compareAndSet(false, true)) {
-            val runnable = onTermination.getAndSet(null)
-            runnable?.run()
-        }
-    }
-
-    private val onTermination: AtomicReference<Runnable> = AtomicReference()
-    override fun onTermination(task: Runnable): MultiEmitter<List<String>> {
-        onTermination.set(task)
-        return this
-    }
-
-    private val terminated = AtomicBoolean()
-    override fun isCancelled(): Boolean {
-        return this.terminated.get()
-    }
-
-    override fun requested(): Long {
-        return this.listeners.size.toLong()
-    }
-
     companion object {
-        private val log = LoggerFactory.getLogger(Responser::class.java)
+        private val log = LoggerFactory.getLogger(ResponseHandler::class.java)
     }
 }
 

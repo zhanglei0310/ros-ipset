@@ -115,10 +115,10 @@ class ProtocolParser(val emitter: MultiEmitter<in List<String>>): Handler<Buffer
         }
     }
 
+    override fun accept(buffer: Buffer) = handle(buffer)
+
     companion object {
         private val log = LoggerFactory.getLogger(ProtocolParser::class.java)
         private val EMPTY_BUFFER: Buffer = Buffer.buffer(Unpooled.EMPTY_BUFFER)
     }
-
-    override fun accept(buffer: Buffer) = handle(buffer)
 }

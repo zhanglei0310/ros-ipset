@@ -2,15 +2,19 @@ package cn.foperate.ros.api
 
 import org.slf4j.LoggerFactory
 
-enum class State {
-    NONE,
-    RESULT,
-    DONE,
-    TRAP,
-    HALT
-}
-
+/***
+ * A response object returned to the api caller.
+ * @author Aston Mei
+ */
 class Response(val state:State) {
+    enum class State {
+        NONE,
+        RESULT,
+        DONE,
+        TRAP,
+        HALT
+    }
+
     var tag:String = ""
     val data = mutableMapOf<String, String>()
 

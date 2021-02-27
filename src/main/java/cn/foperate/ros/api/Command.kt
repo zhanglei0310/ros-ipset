@@ -4,7 +4,12 @@ package cn.foperate.ros.api
  * A command sent to a Mikrotik. This internal class is used to build complex commands
  * with parameters, queries and property lists.
  *
- * @author GideonLeGrange
+ * @property cmd real command part
+ * @property params normally used for filed values for objects
+ * @property queries used as conditions for the query command
+ * @property props selectors for what fields will returned
+ *
+ * @author Aston Mei
  */
 class Command(val cmd: String,
               val params: Map<String, String?> = mapOf(),
