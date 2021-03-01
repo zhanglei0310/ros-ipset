@@ -11,8 +11,8 @@ import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.kotlin.coroutines.CoroutineVerticle
 import io.vertx.kotlin.coroutines.await
 import io.vertx.kotlin.coroutines.toChannel
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.consumeAsFlow
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import org.slf4j.LoggerFactory
 import org.xbill.DNS.*
@@ -57,9 +57,11 @@ class DnsVerticle: CoroutineVerticle() {
         eb = vertx.eventBus()
         serverSocket = vertx.createDatagramSocket(datagramSocketOptionsOf())
             .listen(localPort, "0.0.0.0").await()
-        serverSocket.toChannel(vertx)
-            .consumeAsFlow()
-            .collect(::udpService)
+        log.debug("UDP服务已经启动")
+        serverSocket.handler {
+            // 由于CoroutineVerticle，切换到协程上下文，并不会切换到其它线程
+            launch { udpService(it) }
+        }
     }
 
 
@@ -209,7 +211,7 @@ class DnsVerticle: CoroutineVerticle() {
     /***
      * Make the query result to blockAddress and expired in 1 day.
      */
-    fun blockMessage(request:Message):ByteArray {
+    private fun blockMessage(request:Message):ByteArray {
         val response = Message(request.header.id)
         response.header.setFlag(Flags.QR.toInt())
         response.addRecord(request.question, Section.QUESTION)
@@ -224,6 +226,8 @@ class DnsVerticle: CoroutineVerticle() {
 
     override suspend fun stop() {
         serverSocket.close().await()
+        // 利用协程上下文机制，停掉本服务的全部在等待的处理协程
+        cancel()
     }
 
     companion object {
