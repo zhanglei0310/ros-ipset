@@ -1,7 +1,7 @@
 package cn.foperate.ros.verticle
 
 import cn.foperate.ros.pac.DomainUtil
-import com.google.common.cache.CacheBuilder
+import com.github.benmanes.caffeine.cache.Caffeine
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.datagram.DatagramPacket
 import io.vertx.core.datagram.DatagramSocket
@@ -37,11 +37,11 @@ class DnsVerticle: CoroutineVerticle() {
     private lateinit var serverSocket: DatagramSocket  // 正在监听的服务端口
     private lateinit var eb: EventBus
 
-    private val aCache = CacheBuilder.newBuilder()
+    private val aCache = Caffeine.newBuilder()
         .expireAfterWrite(1, TimeUnit.HOURS)
         .maximumSize(1000)
         .build<String, Buffer>()
-    private val httpsCache = CacheBuilder.newBuilder()
+    private val httpsCache = Caffeine.newBuilder()
         .expireAfterWrite(1, TimeUnit.HOURS)
         .maximumSize(1000)
         .build<String, Buffer>()

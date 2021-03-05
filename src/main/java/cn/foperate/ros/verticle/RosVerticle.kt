@@ -5,7 +5,7 @@ import cn.foperate.ros.api.Command
 import cn.foperate.ros.api.RxApiConnection
 import cn.foperate.ros.api.AsyncSocketFactory
 import cn.foperate.ros.pac.DomainUtil
-import com.google.common.cache.CacheBuilder
+import com.github.benmanes.caffeine.cache.Caffeine
 import io.smallrye.mutiny.Multi
 import io.smallrye.mutiny.Uni
 import io.smallrye.mutiny.coroutines.awaitSuspending
@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit
 class RosVerticle: CoroutineVerticle() {
     private lateinit var rosFwadrKey: String
 
-    private val cache = CacheBuilder.newBuilder()
+    private val cache = Caffeine.newBuilder()
         .expireAfterWrite(24, TimeUnit.HOURS)
         .build<String, Long>()
     private lateinit var socketFactory: AsyncSocketFactory
