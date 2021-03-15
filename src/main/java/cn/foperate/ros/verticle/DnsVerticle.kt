@@ -52,6 +52,7 @@ class DnsVerticle: CoroutineVerticle() {
         remotePort = config.getInteger("remotePort", remotePort)
         fallback = config.getString("fallback")
         val block = config.getString("blockAddress")
+        // 实际不会发生阻塞
         blockAddress = InetAddress.getByName(block)
 
         eb = vertx.eventBus()
@@ -67,6 +68,7 @@ class DnsVerticle: CoroutineVerticle() {
 
     private suspend fun udpService(request:DatagramPacket) {
         try {
+            // 基于IOException进行的猜测，实际不会出现阻塞
             val message = Message(request.data().bytes)
             val questionName = message.question.name.toString()
             val questionType = message.question.type
