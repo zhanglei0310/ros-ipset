@@ -1,7 +1,11 @@
 package cn.foperate.ros.pac
 
+import io.vertx.core.buffer.Buffer
 import org.slf4j.LoggerFactory
+import java.io.BufferedReader
+import java.io.ByteArrayInputStream
 import java.io.File
+import java.io.StringReader
 import java.nio.charset.Charset
 import kotlin.streams.toList
 
@@ -10,6 +14,7 @@ object DomainUtil {
     private val blackList = HashSet<String>()
     private val whiteList = HashSet<String>()
     private val adblockList = HashSet<String>()
+    val netflixList = HashSet<String>()
 
     /*init {
         blackList.add("google.com")
@@ -22,6 +27,13 @@ object DomainUtil {
         val records = reader.lines().filter { it.isNotBlank() }.toList()
         blackList.addAll(records)
         log.info("${records.size} records of black list loaded")
+    }
+
+    fun loadNetflixList(buffer: Buffer) {
+        val reader = StringReader(buffer.toString(Charsets.UTF_8))
+        val records = reader.readLines()
+        netflixList.addAll(records)
+        log.info("${records.size} records of netflix list loaded")
     }
 
     fun loadWhiteList(fileName: String) {

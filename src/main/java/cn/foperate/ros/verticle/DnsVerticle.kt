@@ -38,7 +38,7 @@ class DnsVerticle: CoroutineVerticle() {
     private lateinit var eb: EventBus
 
     private val aCache = Caffeine.newBuilder()
-        .expireAfterWrite(1, TimeUnit.HOURS)
+        .expireAfterWrite(10, TimeUnit.MINUTES)
         .maximumSize(1000)
         .build<String, Buffer>()
     private val httpsCache = Caffeine.newBuilder()

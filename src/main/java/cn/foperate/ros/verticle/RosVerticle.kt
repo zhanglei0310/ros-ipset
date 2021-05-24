@@ -122,6 +122,39 @@ class RosVerticle: CoroutineVerticle() {
             }
     }*/
 
+    private fun sendNetflixRequest(ip: String):Uni<Map<String, String>> {
+        val command = Command("/ip/firewall/address-list/add", params = mapOf(
+            "list" to "NETFLIX",
+            "address" to ip,
+            "timeout" to "7d"
+        ))
+        return executeCommandAsUni(command)
+            .onItem().invoke { _ ->
+                log.info("$ip add success")
+            }
+    }
+
+    suspend fun flushNetflix() {
+        val commandQuery = Command("/ip/firewall/address-list/print", queries = mapOf(
+            "list" to "NETFLIX"
+        ), props = listOf(".id"))
+        executeCommandAsMulti(commandQuery)
+            .onItem().transform { it[".id"].toString() }
+            .collect().asList()
+            .onItem().transformToMulti {
+                val ids = it.joinToString(",")
+                val commandWrite = Command("/ip/firewall/address-list/remove", params = mapOf(
+                   ".id" to ids
+                ))
+                executeCommandAsMulti(commandWrite)
+            }.collect().asList().awaitSuspending()
+        log.debug("旧数据清理完毕")
+        DomainUtil.netflixList
+            .forEach { ip ->
+                sendNetflixRequest(ip).subscribe().with({}){}
+            }
+    }
+
     override suspend fun start() {
 
         rosFwadrKey = config.getString("rosFwadrKey")
@@ -134,6 +167,7 @@ class RosVerticle: CoroutineVerticle() {
             password = config.getString("rosPwd"),
             host = config.getString("rosIp")
         )
+        flushNetflix()
 
         val eb = vertx.eventBus()
 
