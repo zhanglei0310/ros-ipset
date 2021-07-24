@@ -24,6 +24,12 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.util.concurrent.TimeUnit
 
+/*****
+ * 进行DNS过滤、解析和转发，并请求将结果保存到ROS中。
+ * 改用Kotlin协程来实现，期望语义上更加简洁清晰。
+ * @author Aston Mei
+ * @since 2021-07-25
+ */
 class NettyDnsVerticle : CoroutineVerticle() {
     private lateinit var backupClient: DnsProxy
     private lateinit var proxyClient: DnsProxy
@@ -40,10 +46,6 @@ class NettyDnsVerticle : CoroutineVerticle() {
 
     private lateinit var eb: EventBus
 
-    //private val dnsServer: InetSocketAddress
-    //private val actualCtx: ContextInternal
-    //private lateinit var channel: DatagramChannel
-    //private lateinit var options: DnsServerOptions
 
     override suspend fun start() {
         try {
@@ -171,8 +173,8 @@ class NettyDnsVerticle : CoroutineVerticle() {
                                     )
                                 ).onSuccess {
                                     log.debug("call success")
-                                }.onFailure {
-                                    log.error(it.message)
+                                }.onFailure { err ->
+                                    log.error(err.message)
                                 }
                             }.onFailure {
                                 // 但是请求失败后，会从备用服务器解析结果
@@ -195,9 +197,7 @@ class NettyDnsVerticle : CoroutineVerticle() {
                             ctx.writeAndFlush(response)
                         }
                         else -> {
-                            //forwardToFallback(request, questionName, questionType)
                             // TODO  对于没有的域名采用迭代方式
-                            // buf = Unpooled.wrappedBuffer(new byte[] { 127, 0, 0, 1});
                             backupClient.proxy(dnsQuestion).onSuccess {
                                 log.debug(it.toString())
                                 for (answer in it) {

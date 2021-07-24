@@ -3,14 +3,13 @@ package cn.foperate.ros
 import ch.qos.logback.classic.LoggerContext
 import ch.qos.logback.classic.joran.JoranConfigurator
 import cn.foperate.ros.pac.DomainUtil
-import cn.foperate.ros.verticle.DnsVerticle
+import cn.foperate.ros.verticle.NettyDnsVerticle
 import cn.foperate.ros.verticle.RosVerticle
 import io.vertx.core.Vertx
 import io.vertx.core.VertxOptions
 import io.vertx.core.http.HttpMethod
 import io.vertx.core.logging.SLF4JLogDelegateFactory
 import io.vertx.kotlin.core.deploymentOptionsOf
-import io.vertx.kotlin.core.http.httpClientOptionsOf
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.kotlin.coroutines.await
 import kotlinx.coroutines.runBlocking
@@ -20,7 +19,6 @@ import java.io.FileInputStream
 import java.io.IOException
 import java.net.URL
 import java.util.*
-
 
 object IPset {
     private val logger = LoggerFactory.getLogger(IPset::class.java)
@@ -144,28 +142,30 @@ object IPset {
             val body = response.body().await()
             DomainUtil.loadNetflixList(body)
         }
-       vertx.deployVerticle(
+        vertx.deployVerticle(
             RosVerticle(), deploymentOptionsOf(
-            config = jsonObjectOf(
-                "rosFwadrKey" to rosFwadrKey,
-                "rosIp" to rosIp,
-                "rosUser" to rosUser,
-                "rosPwd" to rosPwd
+                config = jsonObjectOf(
+                    "rosFwadrKey" to rosFwadrKey,
+                    "rosIp" to rosIp,
+                    "rosUser" to rosUser,
+                    "rosPwd" to rosPwd
+                )
             )
-        )).onFailure { e ->
+        ).onFailure { e ->
             logger.error(e.message)
             vertx.close()
         }
         vertx.deployVerticle(
-            DnsVerticle(), deploymentOptionsOf(
-            config = jsonObjectOf(
-                "remotePort" to remotePort,
-                "remote" to remote,
-                "localPort" to localPort,
-                "fallback" to fallback,
-                "blockAddress" to blockAddress
+            NettyDnsVerticle(), deploymentOptionsOf(
+                config = jsonObjectOf(
+                    "remotePort" to remotePort,
+                    "remote" to remote,
+                    "localPort" to localPort,
+                    "fallback" to fallback,
+                    "blockAddress" to blockAddress
+                )
             )
-        ))
+        )
 
         logger.info("server started")
     }

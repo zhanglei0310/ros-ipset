@@ -1,32 +1,12 @@
 package cn.foperate.ros.verticle
 
-import cn.foperate.ros.pac.DomainUtil
-import com.github.benmanes.caffeine.cache.Caffeine
-import io.vertx.core.buffer.Buffer
-import io.vertx.core.datagram.DatagramPacket
-import io.vertx.core.datagram.DatagramSocket
-import io.vertx.core.eventbus.EventBus
-import io.vertx.kotlin.core.datagram.datagramSocketOptionsOf
-import io.vertx.kotlin.core.json.jsonObjectOf
-import io.vertx.kotlin.coroutines.CoroutineVerticle
-import io.vertx.kotlin.coroutines.await
-import io.vertx.kotlin.coroutines.toReceiveChannel
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeout
-import org.slf4j.LoggerFactory
-import org.xbill.DNS.*
-import java.net.InetAddress
-import java.util.concurrent.TimeUnit
-import kotlin.streams.toList
-
 /*****
  * 进行DNS过滤、解析和转发，并请求将结果保存到ROS中。
  * 改用Kotlin协程来实现，期望语义上更加简洁清晰。
  * @author Aston Mei
  * @since 2021-02-26
  */
-@Deprecated("有了新的实现")
+/*@Deprecated("有了新的实现")
 class DnsVerticle: CoroutineVerticle() {
 
     private var localPort: Int = 53  // DNS服务监听的端口
@@ -235,4 +215,4 @@ class DnsVerticle: CoroutineVerticle() {
     companion object {
         private val log = LoggerFactory.getLogger(DnsVerticle::class.java)
     }
-}
+}*/

@@ -18,11 +18,11 @@
     </properties>
 
     <dependencies>
-        <dependency>
+        <!--<dependency>
             <groupId>dnsjava</groupId>
             <artifactId>dnsjava</artifactId>
             <version>3.4.0</version>
-        </dependency>
+        </dependency>-->
 
         <!-- logback -->
         <dependency>
