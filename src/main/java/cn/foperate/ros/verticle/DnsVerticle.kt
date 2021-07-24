@@ -10,7 +10,7 @@ import io.vertx.kotlin.core.datagram.datagramSocketOptionsOf
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.kotlin.coroutines.CoroutineVerticle
 import io.vertx.kotlin.coroutines.await
-import io.vertx.kotlin.coroutines.toChannel
+import io.vertx.kotlin.coroutines.toReceiveChannel
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
@@ -26,6 +26,7 @@ import kotlin.streams.toList
  * @author Aston Mei
  * @since 2021-02-26
  */
+@Deprecated("有了新的实现")
 class DnsVerticle: CoroutineVerticle() {
 
     private var localPort: Int = 53  // DNS服务监听的端口
@@ -138,7 +139,7 @@ class DnsVerticle: CoroutineVerticle() {
         try {
             clientSocket.send(packet.data(), remotePort, remote) // .await()
             val result = withTimeout(3000) {
-                clientSocket.toChannel(vertx).receive()
+                clientSocket.toReceiveChannel(vertx).receive()
             }
             if (type == Type.A) {
                 processResult(packet, result, startTime)
@@ -156,13 +157,12 @@ class DnsVerticle: CoroutineVerticle() {
         try {
             clientSocket.send(request.data(), 53, fallback) //.await()
             val response = withTimeout(3000) {
-                clientSocket.toChannel(vertx).receive()
+                clientSocket.toReceiveChannel(vertx).receive()
             }
             log.debug("Get answers for ${Type.string(type)}")
             // Fallback服务当作不可信信息，不操作IPset列表
             serverSocket.send(response.data(), request.sender().port(), request.sender().host())
             clientSocket.close()
-            cacheResult(name, type, response.data())
         } catch (e:Exception) {
             clientSocket.close()
         }

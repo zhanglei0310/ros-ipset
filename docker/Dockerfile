@@ -4,4 +4,4 @@ RUN mkdir /app
 COPY . /app
 
 WORKDIR /app
-CMD ["java", "-cp", "jrodns.jar:libs/*", "cn.foperate.ros.IPset"]
+CMD ["java", "-cp", "jrodns.jar:libs/*", "cn.foperate.ros.NettySet"]
