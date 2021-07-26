@@ -9,10 +9,12 @@ import io.netty.util.concurrent.Promise
 import io.vertx.core.Future
 import io.vertx.core.VertxException
 import io.vertx.core.dns.DnsClientOptions
+import io.vertx.core.dns.DnsResponseCode
 import io.vertx.core.impl.ContextInternal
 import io.vertx.core.impl.VertxInternal
 import io.vertx.core.net.impl.PartialPooledByteBufAllocator
 import org.slf4j.LoggerFactory
+import java.lang.RuntimeException
 import java.net.Inet4Address
 import java.net.InetSocketAddress
 import java.util.concurrent.ThreadLocalRandom
@@ -41,7 +43,7 @@ class DnsProxyImpl(vertx: VertxInternal, options: DnsClientOptions): DnsProxy {
             transport.datagramChannel(if (dnsServer.address is Inet4Address) InternetProtocolFamily.IPv4 else InternetProtocolFamily.IPv6)
         val bufAllocator = channel.config().getRecvByteBufAllocator<MaxMessagesRecvByteBufAllocator>()
         bufAllocator.maxMessagesPerRead(1)
-        //channel.config().setOption(ChannelOption.DATAGRAM_CHANNEL_ACTIVE_ON_REGISTRATION, true) // 用connect代替
+        channel.config().setOption(ChannelOption.DATAGRAM_CHANNEL_ACTIVE_ON_REGISTRATION, true) // 用connect代替
         channel.config().allocator = PartialPooledByteBufAllocator.INSTANCE
         actualCtx.nettyEventLoop().register(channel)
         if (options.logActivity) {
@@ -91,15 +93,29 @@ class DnsProxyImpl(vertx: VertxInternal, options: DnsClientOptions): DnsProxy {
             if (timerID >= 0) {
                 vertx.cancelTimer(timerID)
             }
-            val count = resp.count(DnsSection.ANSWER)
-            val answers = mutableListOf<DnsRawRecord>()
-            for (idx in 0 until count) {
-                val answer = resp.recordAt<DnsRawRecord>(DnsSection.ANSWER, idx)
-                //val raw = DefaultDnsRawRecord(answer.name(), answer.type(), answer.timeToLive(), answer.)
-                answers.add(answer.copy())
+            val code: DnsResponseCode = DnsResponseCode.valueOf(resp.code().intValue())
+            if (code==DnsResponseCode.NOERROR) {
+                val answers = mutableListOf<DnsRawRecord>()
+                for (idx in 0 until resp.count(DnsSection.ANSWER)) {
+                    val answer = resp.recordAt<DnsRawRecord>(DnsSection.ANSWER, idx)
+                    //val raw = DefaultDnsRawRecord(answer.name(), answer.type(), answer.timeToLive(), answer.)
+                    answers.add(answer.copy())
+                }
+                /*for (idx in 0 until resp.count(DnsSection.AUTHORITY)) {
+                    val answer = resp.recordAt<DnsRawRecord>(DnsSection.AUTHORITY, idx)
+                    //val raw = DefaultDnsRawRecord(answer.name(), answer.type(), answer.timeToLive(), answer.)
+                    answers.add(answer.copy())
+                }
+                for (idx in 0 until resp.count(DnsSection.ADDITIONAL)) {
+                    val answer = resp.recordAt<DnsRawRecord>(DnsSection.ADDITIONAL, idx)
+                    //val raw = DefaultDnsRawRecord(answer.name(), answer.type(), answer.timeToLive(), answer.)
+                    answers.add(answer.copy())
+                }*/
+                //handler.handle(answers)
+                promise.setSuccess(answers)
+            } else {
+                promise.setFailure(RuntimeException("服务器错误"))
             }
-            //handler.handle(answers)
-            promise.setSuccess(answers)
         }
 
         fun run() {

@@ -74,13 +74,6 @@ class NettyDnsVerticle : CoroutineVerticle() {
                 )
             )
 
-            /*al server = DnsServer(
-                vertx as VertxInternal, dnsServerOptionsOf(
-                    port = 53,
-                    host = "0.0.0.0"
-                ), backupClient
-            )
-            server.listen()*/
             setupServer(
                 dnsServerOptionsOf(
                     port = localPort,
@@ -138,6 +131,9 @@ class NettyDnsVerticle : CoroutineVerticle() {
                                     /*val list = it.map { raw ->
                                         DnsAnswer.fromRawRecord(raw)
                                     }*/
+                                    if (it.isEmpty()) {
+                                        aCache.invalidate(questionName)
+                                    }
                                     promise.tryComplete(it)
                                 }.onFailure {
                                     // 失败的请求，从缓存中去掉该key
@@ -166,15 +162,17 @@ class NettyDnsVerticle : CoroutineVerticle() {
                                     }
                                 }
                                 ctx.writeAndFlush(response)
-                                eb.request<Long>(
-                                    RosVerticle.EVENT_ADDRESS, jsonObjectOf(
-                                        "domain" to questionName,
-                                        "address" to aRecordIps
-                                    )
-                                ).onSuccess {
-                                    log.debug("call success")
-                                }.onFailure { err ->
-                                    log.error(err.message)
+                                if (aRecordIps.isNotEmpty()) {
+                                    eb.request<Long>(
+                                        RosVerticle.EVENT_ADDRESS, jsonObjectOf(
+                                            "domain" to questionName,
+                                            "address" to aRecordIps
+                                        )
+                                    ).onSuccess {
+                                        log.debug("call success")
+                                    }.onFailure { err ->
+                                        log.error(err.message)
+                                    }
                                 }
                             }.onFailure {
                                 // 但是请求失败后，会从备用服务器解析结果
