@@ -1,2 +1,4 @@
 google.com
 locating.top
+github.com
+youtube.com

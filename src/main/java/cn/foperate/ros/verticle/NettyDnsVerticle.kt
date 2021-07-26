@@ -115,7 +115,7 @@ class NettyDnsVerticle : CoroutineVerticle() {
             override fun channelRead0(ctx: ChannelHandlerContext, query: DatagramDnsQuery) {
                 val response = DatagramDnsResponse(query.recipient(), query.sender(), query.id())
                 try {
-                    val dnsQuestion = query.recordAt<DefaultDnsQuestion>(DnsSection.QUESTION)
+                    val dnsQuestion = query.recordAt<DnsQuestion>(DnsSection.QUESTION)
                     val questionName = dnsQuestion.name()
                     response.addRecord(DnsSection.QUESTION, dnsQuestion)
                     log.debug("查询的域名：$dnsQuestion")
@@ -190,7 +190,7 @@ class NettyDnsVerticle : CoroutineVerticle() {
                             //val reply = blockMessage(message)
                             //serverSocket.send(Buffer.buffer(reply), request.sender().port(), request.sender().host())
                             val buf = Unpooled.wrappedBuffer(blockAddress.address)
-                            val queryAnswer = DefaultDnsRawRecord(dnsQuestion.name(), DnsRecordType.A, 10, buf)
+                            val queryAnswer = DefaultDnsRawRecord(dnsQuestion.name(), DnsRecordType.A, 600, buf)
                             response.addRecord(DnsSection.ANSWER, queryAnswer)
                             ctx.writeAndFlush(response)
                         }
