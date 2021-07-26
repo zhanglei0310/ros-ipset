@@ -3,24 +3,28 @@ package cn.foperate.ros
 import ch.qos.logback.classic.LoggerContext
 import ch.qos.logback.classic.joran.JoranConfigurator
 import cn.foperate.ros.pac.DomainUtil
-import cn.foperate.ros.verticle.DnsVerticle
+import cn.foperate.ros.verticle.NettyDnsVerticle
 import cn.foperate.ros.verticle.RosVerticle
+import io.vertx.core.Vertx
 import io.vertx.core.VertxOptions
+import io.vertx.core.http.HttpMethod
 import io.vertx.core.logging.SLF4JLogDelegateFactory
 import io.vertx.kotlin.core.deploymentOptionsOf
 import io.vertx.kotlin.core.json.jsonObjectOf
-import io.vertx.mutiny.core.Vertx
+import io.vertx.kotlin.coroutines.await
+import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileInputStream
 import java.io.IOException
+import java.net.URL
 import java.util.*
-
 
 object IPset {
     private val logger = LoggerFactory.getLogger(IPset::class.java)
 
     private lateinit var gfwlistPath: String
+    private lateinit var netflixPath: String
     private lateinit var whitelistPath: String
     private lateinit var rosUser: String
     private lateinit var rosPwd: String
@@ -29,7 +33,7 @@ object IPset {
     private var localPort: Int = 53
     private lateinit var remote: String
     private var remotePort: Int = 53
-    private var fallback: String = "223.5.5.5"
+    private var fallback: String = "223.6.6.6"
 
     private lateinit var adblockPath: String
     private var blockAddress: String = "224.0.0.1"
@@ -49,6 +53,7 @@ object IPset {
         val properties = Properties()
         properties.load(FileInputStream(file))
         gfwlistPath = properties.getProperty("gfwlistPath", "gfwlist.txt")
+        netflixPath = properties.getProperty("netflixPath", "https://cdn.jsdelivr.net/gh/QiuSimons/Netflix_IP@master/NF_only.txt")
         whitelistPath = properties.getProperty("whitelistPath", "")
         adblockPath = properties.getProperty("adblockPath", "")
         blockAddress = properties.getProperty("blockAddress", blockAddress)
@@ -92,7 +97,7 @@ object IPset {
     }
 
     @JvmStatic
-    fun main(args:Array<String>) {
+    fun main(args:Array<String>): Unit = runBlocking {
 
         setLogger()
 
@@ -126,28 +131,41 @@ object IPset {
         logger.info("GFWList load completed")
 
         val vertx = Vertx.vertx(VertxOptions())
+        val dns = vertx.createDnsClient(53, "223.5.5.5")
+        netflixPath.let {
+            val url = URL(it)
+            val host = dns.lookup4(url.host).await()
+            val client = vertx.createHttpClient()
+            val request = client.request(HttpMethod.GET, 80, host, it).await()
+            request.host = url.host
+            val response = request.send().await()
+            val body = response.body().await()
+            DomainUtil.loadNetflixList(body)
+        }
         vertx.deployVerticle(
             RosVerticle(), deploymentOptionsOf(
-            config = jsonObjectOf(
-                "rosFwadrKey" to rosFwadrKey,
-                "rosIp" to rosIp,
-                "rosUser" to rosUser,
-                "rosPwd" to rosPwd
+                config = jsonObjectOf(
+                    "rosFwadrKey" to rosFwadrKey,
+                    "rosIp" to rosIp,
+                    "rosUser" to rosUser,
+                    "rosPwd" to rosPwd
+                )
             )
-        )).onFailure().invoke { e ->
+        ).onFailure { e ->
             logger.error(e.message)
-            vertx.close().subscribeAsCompletionStage()
-        }.subscribe().with {  }
+            vertx.close()
+        }
         vertx.deployVerticle(
-            DnsVerticle(), deploymentOptionsOf(
-            config = jsonObjectOf(
-                "remotePort" to remotePort,
-                "remote" to remote,
-                "localPort" to localPort,
-                "fallback" to fallback,
-                "blockAddress" to blockAddress
+            NettyDnsVerticle(), deploymentOptionsOf(
+                config = jsonObjectOf(
+                    "remotePort" to remotePort,
+                    "remote" to remote,
+                    "localPort" to localPort,
+                    "fallback" to fallback,
+                    "blockAddress" to blockAddress
+                )
             )
-        )).subscribe().with {  }
+        )
 
         logger.info("server started")
     }

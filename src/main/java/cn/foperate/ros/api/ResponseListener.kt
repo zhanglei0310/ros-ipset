@@ -1,5 +1,10 @@
 package cn.foperate.ros.api
 
+/**
+ * Command caller should register a listener for the return of the command.
+ *
+ * @author Aston Mei
+ */
 interface ResponseListener {
     /** receive data from router
      * @param result The data received
@@ -14,6 +19,6 @@ interface ResponseListener {
     /** called when the command associated with this listener is done  */
     fun completed(result: Response)
 
-    // just ignore the unknown words
+    /** just ignore the unknown words */
     fun unknown(words: Response) {}
 }

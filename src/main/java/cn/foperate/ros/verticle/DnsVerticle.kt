@@ -1,31 +1,12 @@
 package cn.foperate.ros.verticle
 
-import cn.foperate.ros.pac.DomainUtil
-import com.google.common.cache.CacheBuilder
-import io.vertx.core.buffer.Buffer
-import io.vertx.core.datagram.DatagramPacket
-import io.vertx.core.datagram.DatagramSocket
-import io.vertx.core.eventbus.EventBus
-import io.vertx.kotlin.core.datagram.datagramSocketOptionsOf
-import io.vertx.kotlin.core.json.jsonObjectOf
-import io.vertx.kotlin.coroutines.CoroutineVerticle
-import io.vertx.kotlin.coroutines.await
-import io.vertx.kotlin.coroutines.toChannel
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.consumeAsFlow
-import kotlinx.coroutines.withTimeout
-import org.slf4j.LoggerFactory
-import org.xbill.DNS.*
-import java.net.InetAddress
-import java.util.concurrent.TimeUnit
-import kotlin.streams.toList
-
 /*****
  * 进行DNS过滤、解析和转发，并请求将结果保存到ROS中。
  * 改用Kotlin协程来实现，期望语义上更加简洁清晰。
  * @author Aston Mei
  * @since 2021-02-26
  */
+/*@Deprecated("有了新的实现")
 class DnsVerticle: CoroutineVerticle() {
 
     private var localPort: Int = 53  // DNS服务监听的端口
@@ -37,11 +18,11 @@ class DnsVerticle: CoroutineVerticle() {
     private lateinit var serverSocket: DatagramSocket  // 正在监听的服务端口
     private lateinit var eb: EventBus
 
-    private val aCache = CacheBuilder.newBuilder()
-        .expireAfterWrite(1, TimeUnit.HOURS)
+    private val aCache = Caffeine.newBuilder()
+        .expireAfterWrite(10, TimeUnit.MINUTES)
         .maximumSize(1000)
         .build<String, Buffer>()
-    private val httpsCache = CacheBuilder.newBuilder()
+    private val httpsCache = Caffeine.newBuilder()
         .expireAfterWrite(1, TimeUnit.HOURS)
         .maximumSize(1000)
         .build<String, Buffer>()
@@ -52,19 +33,23 @@ class DnsVerticle: CoroutineVerticle() {
         remotePort = config.getInteger("remotePort", remotePort)
         fallback = config.getString("fallback")
         val block = config.getString("blockAddress")
+        // 实际不会发生阻塞
         blockAddress = InetAddress.getByName(block)
 
         eb = vertx.eventBus()
         serverSocket = vertx.createDatagramSocket(datagramSocketOptionsOf())
             .listen(localPort, "0.0.0.0").await()
-        serverSocket.toChannel(vertx)
-            .consumeAsFlow()
-            .collect(::udpService)
+        log.debug("UDP服务已经启动")
+        serverSocket.handler {
+            // 由于CoroutineVerticle，切换到协程上下文，并不会切换到其它线程
+            launch { udpService(it) }
+        }
     }
 
 
     private suspend fun udpService(request:DatagramPacket) {
         try {
+            // 基于IOException进行的猜测，实际不会出现阻塞
             val message = Message(request.data().bytes)
             val questionName = message.question.name.toString()
             val questionType = message.question.type
@@ -134,7 +119,7 @@ class DnsVerticle: CoroutineVerticle() {
         try {
             clientSocket.send(packet.data(), remotePort, remote) // .await()
             val result = withTimeout(3000) {
-                clientSocket.toChannel(vertx).receive()
+                clientSocket.toReceiveChannel(vertx).receive()
             }
             if (type == Type.A) {
                 processResult(packet, result, startTime)
@@ -152,13 +137,12 @@ class DnsVerticle: CoroutineVerticle() {
         try {
             clientSocket.send(request.data(), 53, fallback) //.await()
             val response = withTimeout(3000) {
-                clientSocket.toChannel(vertx).receive()
+                clientSocket.toReceiveChannel(vertx).receive()
             }
             log.debug("Get answers for ${Type.string(type)}")
             // Fallback服务当作不可信信息，不操作IPset列表
             serverSocket.send(response.data(), request.sender().port(), request.sender().host())
             clientSocket.close()
-            cacheResult(name, type, response.data())
         } catch (e:Exception) {
             clientSocket.close()
         }
@@ -209,7 +193,7 @@ class DnsVerticle: CoroutineVerticle() {
     /***
      * Make the query result to blockAddress and expired in 1 day.
      */
-    fun blockMessage(request:Message):ByteArray {
+    private fun blockMessage(request:Message):ByteArray {
         val response = Message(request.header.id)
         response.header.setFlag(Flags.QR.toInt())
         response.addRecord(request.question, Section.QUESTION)
@@ -224,9 +208,11 @@ class DnsVerticle: CoroutineVerticle() {
 
     override suspend fun stop() {
         serverSocket.close().await()
+        // 利用协程上下文机制，停掉本服务的全部在等待的处理协程
+        cancel()
     }
 
     companion object {
         private val log = LoggerFactory.getLogger(DnsVerticle::class.java)
     }
-}
+}*/

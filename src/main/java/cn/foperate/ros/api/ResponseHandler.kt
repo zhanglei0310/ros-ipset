@@ -1,16 +1,22 @@
 package cn.foperate.ros.api
 
+import cn.foperate.ros.api.Response.State
 import org.slf4j.LoggerFactory
 import java.util.function.Consumer
 
-// 从sentence中读取结果的类，计划使用状态机来实现
-class Responser(val defaultListener: ResponseListener): Consumer<List<String>> {
+/***
+ * Responser的基础实现，单纯对所取得的数据消息的处理
+ * 从sentence中读取结果的类，使用状态机来实现
+ * @author Aston Mei
+ */
+open class ResponseHandler(val defaultListener: ResponseListener): Consumer<List<String>> {
 
-    private val listeners = mutableMapOf<String, ResponseListener>()
+    protected val listeners = mutableMapOf<String, ResponseListener>()
 
     fun waiting(tag: String, listener: ResponseListener) = listeners.put(tag, listener)
     fun forget(tag: String) = listeners.remove(tag)
 
+    // 作为订阅者的实现，是一个被动的实现
     override fun accept(list: List<String>) {
         // 实际上在这里已经知道每个sentence的作用，所以需要首先把sentence解析出来
         val response = Response.fromList(list)
@@ -54,7 +60,7 @@ class Responser(val defaultListener: ResponseListener): Consumer<List<String>> {
     }
 
     companion object {
-        private val log = LoggerFactory.getLogger(Responser::class.java)
+        private val log = LoggerFactory.getLogger(ResponseHandler::class.java)
     }
 }
 
