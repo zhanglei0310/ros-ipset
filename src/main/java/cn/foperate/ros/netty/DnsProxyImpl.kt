@@ -21,24 +21,22 @@ import java.util.concurrent.ThreadLocalRandom
 /**
  * @author [Norman Maurer](mailto:nmaurer@redhat.com)
  */
-class DnsProxyImpl(vertx: VertxInternal, options: DnsClientOptions): DnsProxy {
-    private val vertx: VertxInternal
+class DnsProxyImpl(private val vertx: VertxInternal, private val options: DnsClientOptions): DnsProxy {
     private val inProgressMap = mutableMapOf<Int, Query>()
     private val dnsServer: InetSocketAddress
     private val actualCtx: ContextInternal
-    private val channel: DatagramChannel
-    private val options: DnsClientOptions
+    private var channel: DatagramChannel? = null
 
     init {
         requireNotNull(options.host){ "no null host accepted" }
-        this.options = DnsClientOptions(options)
-        //val creatingContext = vertx.context
         dnsServer = InetSocketAddress(options.host, options.port)
         require(!dnsServer.isUnresolved) { "Cannot resolve the host to a valid ip address" }
-        this.vertx = vertx
-        val transport = vertx.transport()
         actualCtx = vertx.orCreateContext
-        channel =
+    }
+
+    override fun connect(): Future<Void> {
+        val transport = vertx.transport()
+        val channel =
             transport.datagramChannel(if (dnsServer.address is Inet4Address) InternetProtocolFamily.IPv4 else InternetProtocolFamily.IPv6)
         val bufAllocator = channel.config().getRecvByteBufAllocator<MaxMessagesRecvByteBufAllocator>()
         bufAllocator.maxMessagesPerRead(1)
@@ -61,14 +59,17 @@ class DnsProxyImpl(vertx: VertxInternal, options: DnsClientOptions): DnsProxy {
                 log.error(cause.message, cause)
             }
         })
-        //channel.connect(dnsServer)
-    }
-
-    override fun connect(): Future<Void> {
-        val promise = actualCtx.promise<Void>()
         //val dnsServer = InetSocketAddress(host, port)
         //require(!dnsServer.isUnresolved) { "Cannot resolve the host to a valid ip address" }
-        channel.connect(dnsServer).addListener(promise)
+        val promise = actualCtx.promise<Void>()
+        channel.connect(dnsServer).addListener {
+            if (it.isSuccess) {
+                this.channel = channel
+                promise.complete()
+            } else {
+                promise.fail(it.cause())
+            }
+        }
         return promise.future()
     }
 
@@ -132,7 +133,7 @@ class DnsProxyImpl(vertx: VertxInternal, options: DnsClientOptions): DnsProxy {
                 timerID = -1
                 actualCtx.runOnContext { fail(VertxException("DNS query timeout for $msgId")) }
             }
-            channel.writeAndFlush(msg).addListener(ChannelFutureListener { future: ChannelFuture ->
+            channel!!.writeAndFlush(msg).addListener(ChannelFutureListener { future: ChannelFuture ->
                 if (!future.isSuccess) {
                     actualCtx.emit(future.cause()) { cause: Throwable ->
                         fail(
