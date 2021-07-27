@@ -7,7 +7,6 @@ import io.netty.buffer.Unpooled
 import io.netty.handler.codec.dns.*
 import io.vertx.core.Future
 import io.vertx.core.Promise
-import io.vertx.core.dns.DnsClient
 import io.vertx.core.dns.impl.decoder.RecordDecoder
 import io.vertx.core.eventbus.EventBus
 import io.vertx.core.impl.VertxInternal
@@ -18,7 +17,6 @@ import io.vertx.kotlin.coroutines.await
 import org.slf4j.LoggerFactory
 import java.net.InetAddress
 import java.util.concurrent.TimeUnit
-import kotlin.streams.toList
 
 /*****
  * 进行DNS过滤、解析和转发，并请求将结果保存到ROS中。
