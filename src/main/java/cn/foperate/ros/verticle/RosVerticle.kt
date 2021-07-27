@@ -63,7 +63,8 @@ class RosVerticle: CoroutineVerticle() {
                             emitter.complete(item)
                         }
                         .onFailure().recoverWithItem { e ->
-                            log.error("ros command execute error", e)
+                            val com = command.toString()
+                            log.error("ros command execute error: ", com)
                             emitter.fail(e)
                             mapOf()
                         }.subscribe().with {
@@ -186,8 +187,10 @@ class RosVerticle: CoroutineVerticle() {
                     sendAddRequest(ip, domain)
                 }
                 .collect().last()
-                .subscribe().with {
+                .subscribe().with ({
                     message.reply(System.currentTimeMillis())
+                }) {
+                    log.error(it.message)
                 }
         }
         loadCache().awaitSuspending()

@@ -7,6 +7,8 @@ import io.netty.buffer.Unpooled
 import io.netty.handler.codec.dns.*
 import io.vertx.core.Future
 import io.vertx.core.Promise
+import io.vertx.core.dns.DnsClient
+import io.vertx.core.dns.impl.decoder.RecordDecoder
 import io.vertx.core.eventbus.EventBus
 import io.vertx.core.impl.VertxInternal
 import io.vertx.kotlin.core.dns.dnsClientOptionsOf
@@ -16,6 +18,7 @@ import io.vertx.kotlin.coroutines.await
 import org.slf4j.LoggerFactory
 import java.net.InetAddress
 import java.util.concurrent.TimeUnit
+import kotlin.streams.toList
 
 /*****
  * 进行DNS过滤、解析和转发，并请求将结果保存到ROS中。
@@ -73,13 +76,8 @@ class NettyDnsVerticle : CoroutineVerticle() {
                 )
             )
             proxyClient.connect()
+            //proxyClient = vertx.createDnsClient( remotePort, remote)
 
-            /*setupServer(
-                dnsServerOptionsOf(
-                    port = localPort,
-                    host = "0.0.0.0"
-                )
-            )*/
             dnsServer = DnsServerImpl.create(vertx as VertxInternal, dnsServerOptionsOf(
                 port = localPort,
                 host = "0.0.0.0"
@@ -128,17 +126,7 @@ class NettyDnsVerticle : CoroutineVerticle() {
                         for (answer in it) {
                             response.addRecord(DnsSection.ANSWER, answer.retain())
                             if (answer.type()==DnsRecordType.A) {
-                                //response.addRecord(DnsSection.ANSWER, answer.toRawRecord())
-                                val content = answer.content()
-                                val address = content.getUnsignedByte(0).toString() + "." +
-                                        content.getUnsignedByte(1).toString() + "." +
-                                        content.getUnsignedByte(2).toString() + "." +
-                                        content.getUnsignedByte(3).toString()
-                                /*val address = content[0].toUByte().toString() + "." +
-                                        content[1].toUByte().toString() + "." +
-                                        content[2].toUByte().toString() + "." +
-                                        content[3].toUByte().toString()*/
-                                log.debug(address)
+                                val address = RecordDecoder.decode<String>(answer)
                                 aRecordIps.add(address)
                             }
                         }

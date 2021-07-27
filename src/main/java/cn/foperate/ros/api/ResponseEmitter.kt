@@ -13,6 +13,7 @@ class ResponseEmitter(defaultListener: ResponseListener): ResponseHandler(defaul
 
     // 作为发射器的实现（主动实现）
     override fun emit(list: List<String>): MultiEmitter<List<String>> {
+        //log.debug(list.toString())
         accept(list)
         return this
     }

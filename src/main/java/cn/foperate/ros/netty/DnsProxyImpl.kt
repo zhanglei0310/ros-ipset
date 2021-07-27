@@ -106,8 +106,8 @@ class DnsProxyImpl(private val vertx: VertxInternal, private val options: DnsCli
                 val answers = mutableListOf<DnsRawRecord>()
                 for (idx in 0 until resp.count(DnsSection.ANSWER)) {
                     val answer = resp.recordAt<DnsRawRecord>(DnsSection.ANSWER, idx)
-                    //val raw = DefaultDnsRawRecord(answer.name(), answer.type(), answer.timeToLive(), answer.)
-                    answers.add(answer.retain())
+                    val raw = DefaultDnsRawRecord(answer.name(), answer.type(), 600L, answer.content().retain())
+                    answers.add(raw)
                 }
                 /*for (idx in 0 until resp.count(DnsSection.AUTHORITY)) {
                     val answer = resp.recordAt<DnsRawRecord>(DnsSection.AUTHORITY, idx)
