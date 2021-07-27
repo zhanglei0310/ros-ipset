@@ -1,6 +1,7 @@
 package cn.foperate.ros.netty
 
 import io.vertx.codegen.annotations.DataObject
+import io.vertx.core.datagram.DatagramSocketOptions
 import io.vertx.core.dns.DnsClientOptions
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.core.json.jsonObjectOf
@@ -11,7 +12,7 @@ import io.vertx.kotlin.core.json.jsonObjectOf
  * @author [Julien Viet](mailto:julien@julienviet.com)
  */
 @DataObject(generateConverter = true)
-class DnsServerOptions() {
+class DnsServerOptions(): DatagramSocketOptions() {
     /**
      * Get the port to be used by this client in requests.
      *
@@ -32,12 +33,6 @@ class DnsServerOptions() {
      * @return the query timeout in milliseconds
      */
     var queryTimeout = DEFAULT_QUERY_TIMEOUT
-        private set
-
-    /**
-     * @return `true` when network activity logging is enabled
-     */
-    var logActivity = DEFAULT_LOG_ENABLED
         private set
 
     /**
@@ -103,7 +98,7 @@ class DnsServerOptions() {
      * @param logActivity true for logging the network activity
      * @return a reference to this, so the API can be used fluently
      */
-    fun setLogActivity(logActivity: Boolean): DnsServerOptions {
+    override fun setLogActivity(logActivity: Boolean): DnsServerOptions {
         this.logActivity = logActivity
         return this
     }
@@ -119,7 +114,7 @@ class DnsServerOptions() {
         return this
     }
 
-    fun toJson() = jsonObjectOf(
+    override fun toJson() = jsonObjectOf(
         "port" to port,
         "host" to host,
         "queryTimeout" to queryTimeout,
