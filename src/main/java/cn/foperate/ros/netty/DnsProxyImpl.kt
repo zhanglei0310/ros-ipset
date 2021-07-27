@@ -14,7 +14,6 @@ import io.vertx.core.impl.ContextInternal
 import io.vertx.core.impl.VertxInternal
 import io.vertx.core.net.impl.PartialPooledByteBufAllocator
 import org.slf4j.LoggerFactory
-import java.lang.RuntimeException
 import java.net.Inet4Address
 import java.net.InetSocketAddress
 import java.util.concurrent.ThreadLocalRandom
@@ -62,7 +61,15 @@ class DnsProxyImpl(vertx: VertxInternal, options: DnsClientOptions): DnsProxy {
                 log.error(cause.message, cause)
             }
         })
-        channel.connect(dnsServer)
+        //channel.connect(dnsServer)
+    }
+
+    override fun connect(): Future<Void> {
+        val promise = actualCtx.promise<Void>()
+        //val dnsServer = InetSocketAddress(host, port)
+        //require(!dnsServer.isUnresolved) { "Cannot resolve the host to a valid ip address" }
+        channel.connect(dnsServer).addListener(promise)
+        return promise.future()
     }
 
     private inner class Query(dnsQuestion: DnsQuestion) {
@@ -99,7 +106,7 @@ class DnsProxyImpl(vertx: VertxInternal, options: DnsClientOptions): DnsProxy {
                 for (idx in 0 until resp.count(DnsSection.ANSWER)) {
                     val answer = resp.recordAt<DnsRawRecord>(DnsSection.ANSWER, idx)
                     //val raw = DefaultDnsRawRecord(answer.name(), answer.type(), answer.timeToLive(), answer.)
-                    answers.add(answer.copy())
+                    answers.add(answer.retain())
                 }
                 /*for (idx in 0 until resp.count(DnsSection.AUTHORITY)) {
                     val answer = resp.recordAt<DnsRawRecord>(DnsSection.AUTHORITY, idx)

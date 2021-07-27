@@ -121,54 +121,13 @@ class DnsServerImpl private constructor(vertx: VertxInternal, options: DatagramS
         return promise.future().map(this)
     }
 
-    /*@Synchronized
-    override fun pause(): DnsServer {
-        if (demand > 0L) {
-            demand = 0L
-            channel.config().isAutoRead = false
-        }
-        return this
-    }
-
-    @Synchronized
-    override fun resume(): DnsServer {
-        if (demand == 0L) {
-            demand = Long.MAX_VALUE
-            channel.config().isAutoRead = true
-        }
-        return this
-    }
-
-    @Synchronized
-    override fun fetch(amount: Long): DnsServer {
-        require(amount >= 0L) { "Illegal fetch $amount" }
-        if (amount > 0L) {
-            if (demand == 0L) {
-                channel.config().isAutoRead = true
-            }
-            demand += amount
-            if (demand < 0L) {
-                demand = Long.MAX_VALUE
-            }
-        }
-        return this
-    }
-
-    override fun sender(port: Int, host: String): WriteStream<DatagramDnsResponse> {
-        Arguments.requireInRange(port, 0, 65535, "port p must be in range 0 <= p <= 65535")
-        Objects.requireNonNull(host, "no null host accepted")
-        return PacketWriteStreamImpl(this, port, host)
-    }*/
-
     override fun localAddress(): SocketAddress {
         return context.owner().transport().convert(channel.localAddress())
     }
 
     override fun close(handler: Handler<AsyncResult<Void>>) {
         val future = close()
-        if (handler != null) {
-            future.onComplete(handler)
-        }
+        future.onComplete(handler)
     }
 
     @Synchronized
@@ -201,8 +160,6 @@ class DnsServerImpl private constructor(vertx: VertxInternal, options: DatagramS
         //super.finalize()
     }
     
-    //override fun writeAndFlush(response: DatagramDnsResponse): ChannelFuture = channel.writeAndFlush(response)
-
     override fun send(response: DatagramDnsResponse): Future<Void> {
         val promise = context.promise<Void>()
         val f2 = channel.writeAndFlush(response)

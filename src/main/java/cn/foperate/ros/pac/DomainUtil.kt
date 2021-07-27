@@ -1,9 +1,9 @@
 package cn.foperate.ros.pac
 
+import io.netty.handler.codec.dns.DnsQuestion
+import io.netty.handler.codec.dns.DnsRecordType
 import io.vertx.core.buffer.Buffer
 import org.slf4j.LoggerFactory
-import java.io.BufferedReader
-import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.StringReader
 import java.nio.charset.Charset
@@ -81,6 +81,14 @@ object DomainUtil {
             if (blackList.contains(it)) {
                 return true
             }
+        }
+        return false
+    }
+
+    fun match(dnsQuestion: DnsQuestion):Boolean {
+        if (dnsQuestion.type()== DnsRecordType.A) {
+            val name = dnsQuestion.name()
+            return match(name)
         }
         return false
     }

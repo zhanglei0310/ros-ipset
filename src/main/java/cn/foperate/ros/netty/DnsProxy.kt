@@ -6,4 +6,5 @@ import io.vertx.core.Future
 
 interface DnsProxy {
     fun proxy(question: DnsQuestion): Future<List<DnsRawRecord>>
+    fun connect(): Future<Void>
 }

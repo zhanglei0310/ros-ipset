@@ -1,6 +1,5 @@
 package cn.foperate.ros.netty
 
-import io.netty.channel.ChannelFuture
 import io.netty.handler.codec.dns.DatagramDnsQuery
 import io.netty.handler.codec.dns.DatagramDnsResponse
 import io.vertx.core.AsyncResult
@@ -9,15 +8,23 @@ import io.vertx.core.Handler
 import io.vertx.core.net.SocketAddress
 
 interface DnsServer {
+    // 服务启动监听
     fun listen(port: Int, address: String): Future<DnsServer>
+    fun listen(port: Int, address: String, handler: Handler<AsyncResult<DnsServer>>): DnsServer
+
+    // 服务结束
     fun close(): Future<Void>
-    //fun writeAndFlush(response: DatagramDnsResponse): ChannelFuture
+    fun close(handler: Handler<AsyncResult<Void>>)
+
+    // 一组处理模块
+    fun handler(handler: Handler<DatagramDnsQuery>): DnsServer
     fun exceptionHandler(handler: Handler<Throwable>): DnsServer
     fun endHandler(handler: Handler<Void>): DnsServer
-    fun handler(handler: Handler<DatagramDnsQuery>): DnsServer
-    fun listen(port: Int, address: String, handler: Handler<AsyncResult<DnsServer>>): DnsServer
-    fun close(handler: Handler<AsyncResult<Void>>)
-    fun localAddress(): SocketAddress
+
+    // 发出结果数据
     fun send(response: DatagramDnsResponse): Future<Void>
     fun send(response: DatagramDnsResponse, handler: Handler<AsyncResult<Void>>?): DnsServer
+
+    // 获取本地地址的工具函数
+    fun localAddress(): SocketAddress
 }
