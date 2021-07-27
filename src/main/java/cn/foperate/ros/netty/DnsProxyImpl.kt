@@ -106,6 +106,7 @@ class DnsProxyImpl(private val vertx: VertxInternal, private val options: DnsCli
                 val answers = mutableListOf<DnsRawRecord>()
                 for (idx in 0 until resp.count(DnsSection.ANSWER)) {
                     val answer = resp.recordAt<DnsRawRecord>(DnsSection.ANSWER, idx)
+                    // FIXME 目前一律按照10分钟的寿命来处理请求，是否合理？
                     val raw = DefaultDnsRawRecord(answer.name(), answer.type(), 600L, answer.content().retain())
                     answers.add(raw)
                 }

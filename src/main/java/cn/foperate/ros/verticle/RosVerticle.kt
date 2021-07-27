@@ -42,13 +42,12 @@ class RosVerticle: CoroutineVerticle() {
                         .onCompletion().invoke {
                             emitter.complete()
                         }
-                        .onFailure().recoverWithItem { e ->
-                            log.error("ros command execute error", e)
-                            emitter.fail(e)
-                            mapOf()
-                        }.subscribe().with {
+                        .subscribe().with ({
                             // 如果之前出现了执行错误，在return时，连接会被回收
                             //apiConnection.close()
+                        }) { e ->
+                            log.error("ros command execute error: ${e.message}")
+                            emitter.fail(e)
                         }
                 }
         }
@@ -62,14 +61,12 @@ class RosVerticle: CoroutineVerticle() {
                         .onItem().invoke { item ->
                             emitter.complete(item)
                         }
-                        .onFailure().recoverWithItem { e ->
-                            val com = command.toString()
-                            log.error("ros command execute error: ", com)
-                            emitter.fail(e)
-                            mapOf()
-                        }.subscribe().with {
+                        .subscribe().with ({
                             // 如果之前出现了执行错误，在return时，连接会被回收
                             //apiConnection.close()
+                        }) { e ->
+                            log.error("ros command execute error: ${e.message}")
+                            emitter.fail(e)
                         }
                 }
         }
@@ -190,7 +187,7 @@ class RosVerticle: CoroutineVerticle() {
                 .subscribe().with ({
                     message.reply(System.currentTimeMillis())
                 }) {
-                    log.error(it.message)
+                    message.reply(System.currentTimeMillis())
                 }
         }
         loadCache().awaitSuspending()

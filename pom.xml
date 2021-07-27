@@ -10,8 +10,8 @@
 
     <properties>
         <kotlin.version>1.5.21</kotlin.version>
-        <kotlin.compiler.jvmTarget>1.8</kotlin.compiler.jvmTarget>
-        <mutiny.version>2.1.1</mutiny.version>
+        <kotlin.compiler.jvmTarget>11</kotlin.compiler.jvmTarget>
+        <mutiny.version>2.9.0</mutiny.version>
         <vertx.version>4.1.2</vertx.version>
         <main.class>cn.foperate.ros.IPset</main.class>
         <graalvm.version>21.0.0.2</graalvm.version>
@@ -61,7 +61,7 @@
         <dependency>
             <groupId>io.smallrye.reactive</groupId>
             <artifactId>mutiny-kotlin</artifactId>
-            <version>0.14.0</version>
+            <version>0.19.2</version>
         </dependency>
         <dependency>
             <groupId>io.vertx</groupId>
@@ -73,6 +73,13 @@
             <artifactId>vertx-lang-kotlin-coroutines</artifactId>
             <version>${vertx.version}</version>
         </dependency>
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-transport-native-epoll</artifactId>
+            <classifier>linux-x86_64</classifier>
+            <version>4.1.65.Final</version>
+        </dependency>
+
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
