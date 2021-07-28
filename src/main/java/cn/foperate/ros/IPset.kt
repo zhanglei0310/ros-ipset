@@ -11,6 +11,7 @@ import io.vertx.core.http.HttpMethod
 import io.vertx.core.logging.SLF4JLogDelegateFactory
 import io.vertx.kotlin.core.deploymentOptionsOf
 import io.vertx.kotlin.core.json.jsonObjectOf
+import io.vertx.kotlin.core.vertxOptionsOf
 import io.vertx.kotlin.coroutines.await
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
@@ -130,7 +131,9 @@ object IPset {
 
         logger.info("GFWList load completed")
 
-        val vertx = Vertx.vertx(VertxOptions())
+        val vertx = Vertx.vertx(vertxOptionsOf(
+            preferNativeTransport = true
+        ))
         val dns = vertx.createDnsClient(53, "223.5.5.5")
         netflixPath.let {
             val url = URL(it)

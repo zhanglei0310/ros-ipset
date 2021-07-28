@@ -89,6 +89,7 @@ class RxApiConnection(val vertx: Vertx, val host: String): AutoCloseable {
                 override fun error(ex: MikrotikApiException) {
                     vertx.cancelTimer(timerId)
                     em.fail(ex)
+                    // 出现错误并不影响下面的执行，直接去掉响应的tag就可以了。
                     responser.forget(tag)
                 }
 

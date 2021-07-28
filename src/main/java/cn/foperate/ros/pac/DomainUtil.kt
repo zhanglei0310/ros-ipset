@@ -2,8 +2,6 @@ package cn.foperate.ros.pac
 
 import io.vertx.core.buffer.Buffer
 import org.slf4j.LoggerFactory
-import java.io.BufferedReader
-import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.StringReader
 import java.nio.charset.Charset
@@ -85,6 +83,14 @@ object DomainUtil {
         return false
     }
 
+    /*fun match(dnsQuestion: DnsQuestion):Boolean {
+        if (dnsQuestion.type()== DnsRecordType.A) {
+            val name = dnsQuestion.name()
+            return match(name)
+        }
+        return false
+    }*/
+
     fun parse(domain: String):List<String> {
         val result = mutableListOf(domain)
         var index = 0
@@ -105,8 +111,8 @@ object DomainUtil {
             val hour = group["hour"]?.value?.toInt() ?: 0
             val min = group["min"]?.value?.toInt() ?: 0
             val sec = group["sec"]?.value?.toInt() ?: 0
-            hour*3600 + min*60 + sec
-        } ?: 24*3600
+            hour * 3600 + min * 60 + sec
+        } ?: (24 * 3600)
     }
 
     fun matchBlock(name: String): Boolean {

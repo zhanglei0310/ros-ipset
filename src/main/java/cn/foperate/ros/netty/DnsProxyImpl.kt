@@ -14,7 +14,6 @@ import io.vertx.core.impl.ContextInternal
 import io.vertx.core.impl.VertxInternal
 import io.vertx.core.net.impl.PartialPooledByteBufAllocator
 import org.slf4j.LoggerFactory
-import java.lang.RuntimeException
 import java.net.Inet4Address
 import java.net.InetSocketAddress
 import java.util.concurrent.ThreadLocalRandom
@@ -22,28 +21,24 @@ import java.util.concurrent.ThreadLocalRandom
 /**
  * @author [Norman Maurer](mailto:nmaurer@redhat.com)
  */
-class DnsProxyImpl(vertx: VertxInternal, options: DnsClientOptions): DnsProxy {
-    private val vertx: VertxInternal
+class DnsProxyImpl(private val vertx: VertxInternal, private val options: DnsClientOptions): DnsProxy {
     private val inProgressMap = mutableMapOf<Int, Query>()
-    private val dnsServer: InetSocketAddress
-    private val actualCtx: ContextInternal
-    private val channel: DatagramChannel
-    private val options: DnsClientOptions
+    private lateinit var dnsServer: InetSocketAddress
+    private lateinit var actualCtx: ContextInternal
+    private var channel: DatagramChannel? = null
 
-    init {
-        requireNotNull(options.host){ "no null host accepted" }
-        this.options = DnsClientOptions(options)
-        //val creatingContext = vertx.context
+    override fun connect(): DnsProxy {
+        require(options.host.isNotBlank()){ "必须有服务器的域名" }
+        vertx.context
         dnsServer = InetSocketAddress(options.host, options.port)
-        require(!dnsServer.isUnresolved) { "Cannot resolve the host to a valid ip address" }
-        this.vertx = vertx
+        require(!dnsServer.isUnresolved) { "域名服务器非法" }
         val transport = vertx.transport()
         actualCtx = vertx.orCreateContext
-        channel =
+        val channel =
             transport.datagramChannel(if (dnsServer.address is Inet4Address) InternetProtocolFamily.IPv4 else InternetProtocolFamily.IPv6)
+        channel.config().setOption(ChannelOption.DATAGRAM_CHANNEL_ACTIVE_ON_REGISTRATION, true) // 用connect代替
         val bufAllocator = channel.config().getRecvByteBufAllocator<MaxMessagesRecvByteBufAllocator>()
         bufAllocator.maxMessagesPerRead(1)
-        channel.config().setOption(ChannelOption.DATAGRAM_CHANNEL_ACTIVE_ON_REGISTRATION, true) // 用connect代替
         channel.config().allocator = PartialPooledByteBufAllocator.INSTANCE
         actualCtx.nettyEventLoop().register(channel)
         if (options.logActivity) {
@@ -62,7 +57,13 @@ class DnsProxyImpl(vertx: VertxInternal, options: DnsClientOptions): DnsProxy {
                 log.error(cause.message, cause)
             }
         })
-        channel.connect(dnsServer)
+        this.channel = channel
+        /*channel.connect(dnsServer).addListener {
+            if (it.isSuccess) {
+                this.channel = channel
+            }
+        }*/
+        return this
     }
 
     private inner class Query(dnsQuestion: DnsQuestion) {
@@ -72,7 +73,7 @@ class DnsProxyImpl(vertx: VertxInternal, options: DnsClientOptions): DnsProxy {
             null,
             dnsServer,
             ThreadLocalRandom.current().nextInt()
-        ) //.setRecursionDesired(options.isRecursionDesired)
+        ) .setRecursionDesired(options.isRecursionDesired)
 
         init {
             log.debug(dnsQuestion.toString())
@@ -98,8 +99,9 @@ class DnsProxyImpl(vertx: VertxInternal, options: DnsClientOptions): DnsProxy {
                 val answers = mutableListOf<DnsRawRecord>()
                 for (idx in 0 until resp.count(DnsSection.ANSWER)) {
                     val answer = resp.recordAt<DnsRawRecord>(DnsSection.ANSWER, idx)
-                    //val raw = DefaultDnsRawRecord(answer.name(), answer.type(), answer.timeToLive(), answer.)
-                    answers.add(answer.copy())
+                    // FIXME 目前一律按照10分钟的寿命来处理请求，是否合理？
+                    val raw = DefaultDnsRawRecord(answer.name(), answer.type(), 600L, answer.content().retain())
+                    answers.add(raw)
                 }
                 /*for (idx in 0 until resp.count(DnsSection.AUTHORITY)) {
                     val answer = resp.recordAt<DnsRawRecord>(DnsSection.AUTHORITY, idx)
@@ -111,10 +113,9 @@ class DnsProxyImpl(vertx: VertxInternal, options: DnsClientOptions): DnsProxy {
                     //val raw = DefaultDnsRawRecord(answer.name(), answer.type(), answer.timeToLive(), answer.)
                     answers.add(answer.copy())
                 }*/
-                //handler.handle(answers)
                 promise.setSuccess(answers)
             } else {
-                promise.setFailure(RuntimeException("服务器错误"))
+                promise.setFailure(RuntimeException("服务器错误: $code"))
             }
         }
 
@@ -125,7 +126,7 @@ class DnsProxyImpl(vertx: VertxInternal, options: DnsClientOptions): DnsProxy {
                 timerID = -1
                 actualCtx.runOnContext { fail(VertxException("DNS query timeout for $msgId")) }
             }
-            channel.writeAndFlush(msg).addListener(ChannelFutureListener { future: ChannelFuture ->
+            channel!!.writeAndFlush(msg).addListener(ChannelFutureListener { future: ChannelFuture ->
                 if (!future.isSuccess) {
                     actualCtx.emit(future.cause()) { cause: Throwable ->
                         fail(
