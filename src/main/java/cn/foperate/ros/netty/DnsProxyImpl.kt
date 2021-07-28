@@ -23,24 +23,22 @@ import java.util.concurrent.ThreadLocalRandom
  */
 class DnsProxyImpl(private val vertx: VertxInternal, private val options: DnsClientOptions): DnsProxy {
     private val inProgressMap = mutableMapOf<Int, Query>()
-    private val dnsServer: InetSocketAddress
-    private val actualCtx: ContextInternal
+    private lateinit var dnsServer: InetSocketAddress
+    private lateinit var actualCtx: ContextInternal
     private var channel: DatagramChannel? = null
 
-    init {
-        requireNotNull(options.host){ "no null host accepted" }
+    override fun connect(): DnsProxy {
+        require(options.host.isNotBlank()){ "必须有服务器的域名" }
+        vertx.context
         dnsServer = InetSocketAddress(options.host, options.port)
-        require(!dnsServer.isUnresolved) { "Cannot resolve the host to a valid ip address" }
-        actualCtx = vertx.orCreateContext
-    }
-
-    override fun connect(): Future<Void> {
+        require(!dnsServer.isUnresolved) { "域名服务器非法" }
         val transport = vertx.transport()
+        actualCtx = vertx.orCreateContext
         val channel =
             transport.datagramChannel(if (dnsServer.address is Inet4Address) InternetProtocolFamily.IPv4 else InternetProtocolFamily.IPv6)
+        channel.config().setOption(ChannelOption.DATAGRAM_CHANNEL_ACTIVE_ON_REGISTRATION, true) // 用connect代替
         val bufAllocator = channel.config().getRecvByteBufAllocator<MaxMessagesRecvByteBufAllocator>()
         bufAllocator.maxMessagesPerRead(1)
-        channel.config().setOption(ChannelOption.DATAGRAM_CHANNEL_ACTIVE_ON_REGISTRATION, true) // 用connect代替
         channel.config().allocator = PartialPooledByteBufAllocator.INSTANCE
         actualCtx.nettyEventLoop().register(channel)
         if (options.logActivity) {
@@ -59,18 +57,13 @@ class DnsProxyImpl(private val vertx: VertxInternal, private val options: DnsCli
                 log.error(cause.message, cause)
             }
         })
-        //val dnsServer = InetSocketAddress(host, port)
-        //require(!dnsServer.isUnresolved) { "Cannot resolve the host to a valid ip address" }
-        val promise = actualCtx.promise<Void>()
-        channel.connect(dnsServer).addListener {
+        this.channel = channel
+        /*channel.connect(dnsServer).addListener {
             if (it.isSuccess) {
                 this.channel = channel
-                promise.complete()
-            } else {
-                promise.fail(it.cause())
             }
-        }
-        return promise.future()
+        }*/
+        return this
     }
 
     private inner class Query(dnsQuestion: DnsQuestion) {
@@ -80,7 +73,7 @@ class DnsProxyImpl(private val vertx: VertxInternal, private val options: DnsCli
             null,
             dnsServer,
             ThreadLocalRandom.current().nextInt()
-        ) //.setRecursionDesired(options.isRecursionDesired)
+        ) .setRecursionDesired(options.isRecursionDesired)
 
         init {
             log.debug(dnsQuestion.toString())
@@ -120,10 +113,9 @@ class DnsProxyImpl(private val vertx: VertxInternal, private val options: DnsCli
                     //val raw = DefaultDnsRawRecord(answer.name(), answer.type(), answer.timeToLive(), answer.)
                     answers.add(answer.copy())
                 }*/
-                //handler.handle(answers)
                 promise.setSuccess(answers)
             } else {
-                promise.setFailure(RuntimeException("服务器错误"))
+                promise.setFailure(RuntimeException("服务器错误: $code"))
             }
         }
 

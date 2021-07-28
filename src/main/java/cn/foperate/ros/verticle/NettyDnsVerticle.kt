@@ -7,6 +7,7 @@ import io.netty.buffer.Unpooled
 import io.netty.handler.codec.dns.*
 import io.vertx.core.Future
 import io.vertx.core.Promise
+import io.vertx.core.dns.DnsClient
 import io.vertx.core.dns.impl.decoder.RecordDecoder
 import io.vertx.core.eventbus.EventBus
 import io.vertx.core.impl.VertxInternal
@@ -27,6 +28,7 @@ import java.util.concurrent.TimeUnit
 class NettyDnsVerticle : CoroutineVerticle() {
     private lateinit var backupClient: DnsProxy
     private lateinit var proxyClient: DnsProxy
+    private lateinit var dnsProxy: DnsClient
     private lateinit var dnsServer: DnsServer
     private val aCache = Caffeine.newBuilder()
         .expireAfterWrite(10, TimeUnit.MINUTES)
@@ -57,24 +59,19 @@ class NettyDnsVerticle : CoroutineVerticle() {
             blockAddress = InetAddress.getByName(block)
 
             eb = vertx.eventBus()
-            backupClient = DnsProxyImpl(
-                vertx as VertxInternal, dnsClientOptionsOf(
+            backupClient = vertx.createDnsProxy(dnsClientOptionsOf(
                     host = fallback,
                     port = 53,
-                    recursionDesired = true
-                )
-            )
-            backupClient.connect()
+                    recursionDesired = true // 需要这个选项，否则某些域名的解析会失败
+                ))
 
-            proxyClient = DnsProxyImpl(
-                vertx as VertxInternal, dnsClientOptionsOf(
+            proxyClient = vertx.createDnsProxy(dnsClientOptionsOf(
                     host = remote,
                     port = remotePort,
                     recursionDesired = true
-                )
-            )
-            proxyClient.connect()
-            //proxyClient = vertx.createDnsClient( remotePort, remote)
+                ))
+
+            dnsProxy = vertx.createDnsClient(remotePort, remote)
 
             dnsServer = DnsServerImpl.create(vertx as VertxInternal, dnsServerOptionsOf(
                 port = localPort,
@@ -101,54 +98,65 @@ class NettyDnsVerticle : CoroutineVerticle() {
             response.addRecord(DnsSection.QUESTION, dnsQuestion)
             log.debug("查询的域名：$dnsQuestion")
             when {
-                DomainUtil.match(dnsQuestion) -> { // A类查询，在查询名单，且不在逃逸名单里
+                DomainUtil.match(questionName) -> { // A类查询，在查询名单，且不在逃逸名单里
                     log.debug("gfwlist hint")
-                    //forwardToRemote(request, questionName, questionType)
+                    log.debug(dnsQuestion.toString())
 
-                    val future = aCache.get(questionName) {
+                    val future: Future<List<DnsRawRecord>> = aCache.getIfPresent(questionName) ?: run {
                         val promise = Promise.promise<List<DnsRawRecord>>()
                         proxyClient.proxy(dnsQuestion).onSuccess {
-                            if (it.isEmpty()) {
-                                aCache.invalidate(questionName)
-                            }
                             promise.tryComplete(it)
                         }.onFailure {
-                            // 失败的请求，从缓存中去掉该key
-                            aCache.invalidate(questionName)
                             promise.tryFail(it)
                         }
                         promise.future()
                     }
-                    future!!.onSuccess {
-                        val aRecordIps = mutableListOf<String>()
-                        for (answer in it) {
-                            response.addRecord(DnsSection.ANSWER, answer.retain())
-                            if (answer.type()==DnsRecordType.A) {
-                                val address = RecordDecoder.decode<String>(answer)
-                                aRecordIps.add(address)
+                    future.onSuccess {
+                        log.debug("Success with ${it.size}")
+                        if (it.isNotEmpty()) {
+                            if (dnsQuestion.type()== DnsRecordType.A) {
+                                aCache.put(questionName, future)
                             }
-                        }
-                        dnsServer.send(response)
-                        if (aRecordIps.isNotEmpty()) {
-                            eb.request<Long>(
-                                RosVerticle.EVENT_ADDRESS, jsonObjectOf(
-                                    "domain" to questionName,
-                                    "address" to aRecordIps
-                                )
-                            ).onSuccess {
-                                log.debug("call success")
-                            }.onFailure { err ->
-                                log.error(err.message)
-                            }
-                        }
-                    }.onFailure {
-                        // 但是请求失败后，会从备用服务器解析结果
-                        backupClient.proxy(dnsQuestion).onSuccess {
-                            log.debug(it.toString())
+                            val aRecordIps = mutableListOf<String>()
                             for (answer in it) {
-                                response.addRecord(DnsSection.ANSWER, answer)
+                                response.addRecord(DnsSection.ANSWER, answer.retain())
+                                if (answer.type()==DnsRecordType.A) {
+                                    val address = RecordDecoder.decode<String>(answer)
+                                    aRecordIps.add(address)
+                                }
                             }
                             dnsServer.send(response)
+                            if (aRecordIps.isNotEmpty()) {
+                                eb.request<Long>(
+                                    RosVerticle.EVENT_ADDRESS, jsonObjectOf(
+                                        "domain" to questionName,
+                                        "address" to aRecordIps
+                                    )
+                                ).onSuccess {
+                                    //log.debug("call success")
+                                }.onFailure { err ->
+                                    log.error(err.message)
+                                }
+                            }
+                        }
+                    }.onFailure { e ->
+                        log.debug("$questionName 解析失败 ${e.message}")
+                        // 但是请求失败后，会从备用服务器解析结果
+                        if (dnsQuestion.type()== DnsRecordType.A) {
+                            dnsProxy.resolveA(questionName).onSuccess {
+                                log.debug(it.toString())
+                                for (answer in it) {
+                                    val ip = answer.split(".").map { sec ->
+                                        sec.toUByte().toByte()
+                                    }.toByteArray()
+                                    response.addRecord(DnsSection.ANSWER,
+                                        DefaultDnsRawRecord(questionName, DnsRecordType.A, 600, Unpooled.wrappedBuffer(ip))
+                                    )
+                                }
+                                dnsServer.send(response)
+                            }.onFailure {
+                                log.error(it.message)
+                            }
                         }
                     }
                 }
@@ -162,14 +170,13 @@ class NettyDnsVerticle : CoroutineVerticle() {
                     dnsServer.send(response)
                 }
                 else -> {
-                    // TODO  对于没有的域名采用迭代方式
                     backupClient.proxy(dnsQuestion).onSuccess {
                         log.debug(it.toString())
                         for (answer in it) {
                             response.addRecord(DnsSection.ANSWER, answer)
                         }
                         dnsServer.send(response)
-                    }
+                    }.onFailure {  }
                 }
             }
         } catch (e: Exception) {
