@@ -95,14 +95,16 @@ class NettyDnsVerticle : CoroutineVerticle() {
     fun handleDnsQuery(dnsQuestion: DnsQuestion, response: DatagramDnsResponse) {
         try {
             val questionName = dnsQuestion.name()
+            val questionType = dnsQuestion.type().name()
             response.addRecord(DnsSection.QUESTION, dnsQuestion)
             log.debug("查询的域名：$dnsQuestion")
             when {
                 DomainUtil.match(questionName) -> { // A类查询，在查询名单，且不在逃逸名单里
                     log.debug("gfwlist hint")
                     log.debug(dnsQuestion.toString())
+                    val queryKey = "$questionName($questionType)"
 
-                    val future: Future<List<DnsRawRecord>> = aCache.getIfPresent(questionName) ?: run {
+                    val future: Future<List<DnsRawRecord>> = aCache.getIfPresent(queryKey) ?: run {
                         val promise = Promise.promise<List<DnsRawRecord>>()
                         proxyClient.proxy(dnsQuestion).onSuccess {
                             promise.tryComplete(it)
@@ -115,10 +117,10 @@ class NettyDnsVerticle : CoroutineVerticle() {
                         log.debug("Success with ${it.size}")
                         if (it.isNotEmpty()) {
                             if (dnsQuestion.type()== DnsRecordType.A) {
-                                aCache.put(questionName, future)
+                                aCache.put(queryKey, future)
                             }
                             val aRecordIps = mutableListOf<String>()
-                            for (answer in it) {
+                            it.stream().limit(14).forEach { answer ->
                                 response.addRecord(DnsSection.ANSWER, answer.retain())
                                 if (answer.type()==DnsRecordType.A) {
                                     val address = RecordDecoder.decode<String>(answer)
@@ -140,7 +142,7 @@ class NettyDnsVerticle : CoroutineVerticle() {
                             }
                         }
                     }.onFailure { e ->
-                        log.debug("$questionName 解析失败 ${e.message}")
+                        log.error("$questionName 解析失败 ${e.message}", e)
                         // 但是请求失败后，会从备用服务器解析结果
                         if (dnsQuestion.type()== DnsRecordType.A) {
                             dnsProxy.resolveA(questionName).onSuccess {

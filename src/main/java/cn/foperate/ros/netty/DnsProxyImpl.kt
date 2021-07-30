@@ -128,10 +128,8 @@ class DnsProxyImpl(private val vertx: VertxInternal, private val options: DnsCli
             }
             channel!!.writeAndFlush(msg).addListener(ChannelFutureListener { future: ChannelFuture ->
                 if (!future.isSuccess) {
-                    actualCtx.emit(future.cause()) { cause: Throwable ->
-                        fail(
-                            cause
-                        )
+                    actualCtx.emit(future.cause()) { cause -> // 如果出现错误
+                        fail(cause)
                     }
                 }
             })
