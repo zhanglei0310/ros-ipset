@@ -7,7 +7,6 @@ import io.netty.buffer.Unpooled
 import io.netty.handler.codec.dns.*
 import io.vertx.core.Future
 import io.vertx.core.Promise
-import io.vertx.core.dns.DnsClient
 import io.vertx.core.dns.impl.decoder.RecordDecoder
 import io.vertx.core.eventbus.EventBus
 import io.vertx.core.impl.VertxInternal
@@ -28,7 +27,6 @@ import java.util.concurrent.TimeUnit
 class NettyDnsVerticle : CoroutineVerticle() {
     private lateinit var backupClient: DnsProxy
     private lateinit var proxyClient: DnsProxy
-    private lateinit var dnsProxy: DnsClient
     private lateinit var dnsServer: DnsServer
     private val aCache = Caffeine.newBuilder()
         .expireAfterWrite(10, TimeUnit.MINUTES)
@@ -39,6 +37,14 @@ class NettyDnsVerticle : CoroutineVerticle() {
             }
         }
         .build<String, Future<List<DnsRawRecord>>>()
+
+    /*private val proxyCache = Caffeine.newBuilder()
+        .expireAfterWrite(10, TimeUnit.MINUTES)
+        .maximumSize(2)
+        .evictionListener { _: String?, value: DnsProxy?, _ ->
+            value?.close()
+        }
+        .build<String, DnsProxy>()*/
 
     private var localPort: Int = 53  // DNS服务监听的端口
     private lateinit var remote: String  // upstream服务器地址
@@ -71,8 +77,6 @@ class NettyDnsVerticle : CoroutineVerticle() {
                     recursionDesired = true
                 ))
 
-            dnsProxy = vertx.createDnsClient(remotePort, remote)
-
             dnsServer = DnsServerImpl.create(vertx as VertxInternal, dnsServerOptionsOf(
                 port = localPort,
                 host = "0.0.0.0"
@@ -96,13 +100,14 @@ class NettyDnsVerticle : CoroutineVerticle() {
         try {
             val questionName = dnsQuestion.name()
             val questionType = dnsQuestion.type().name()
+            val queryKey = "$questionName($questionType)"
+
             response.addRecord(DnsSection.QUESTION, dnsQuestion)
             log.debug("查询的域名：$dnsQuestion")
             when {
-                DomainUtil.match(questionName) -> { // A类查询，在查询名单，且不在逃逸名单里
+                DomainUtil.match(dnsQuestion) -> { // A类查询，在查询名单，且不在逃逸名单里
                     log.debug("gfwlist hint")
                     log.debug(dnsQuestion.toString())
-                    val queryKey = "$questionName($questionType)"
 
                     val future: Future<List<DnsRawRecord>> = aCache.getIfPresent(queryKey) ?: run {
                         val promise = Promise.promise<List<DnsRawRecord>>()
@@ -120,7 +125,7 @@ class NettyDnsVerticle : CoroutineVerticle() {
                                 aCache.put(queryKey, future)
                             }
                             val aRecordIps = mutableListOf<String>()
-                            it.stream().limit(14).forEach { answer ->
+                            it.forEach { answer -> // 在Alpine上会遇到奇怪的现象会大分片失败，存疑。
                                 response.addRecord(DnsSection.ANSWER, answer.retain())
                                 if (answer.type()==DnsRecordType.A) {
                                     val address = RecordDecoder.decode<String>(answer)
@@ -145,6 +150,7 @@ class NettyDnsVerticle : CoroutineVerticle() {
                         log.error("$questionName 解析失败 ${e.message}", e)
                         // 但是请求失败后，会从备用服务器解析结果
                         if (dnsQuestion.type()== DnsRecordType.A) {
+                            val dnsProxy = vertx.createDnsClient(remotePort, remote)
                             dnsProxy.resolveA(questionName).onSuccess {
                                 log.debug(it.toString())
                                 for (answer in it) {

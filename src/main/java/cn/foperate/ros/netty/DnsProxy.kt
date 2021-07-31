@@ -10,6 +10,7 @@ import io.vertx.core.impl.VertxInternal
 interface DnsProxy {
     fun proxy(question: DnsQuestion): Future<List<DnsRawRecord>>
     fun connect(): DnsProxy
+    fun close(): Future<Void>
     companion object {
         fun create(vertx: Vertx, options: DnsClientOptions): DnsProxy {
             return DnsProxyImpl(vertx as VertxInternal, options).connect()

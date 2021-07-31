@@ -1,7 +1,6 @@
 package cn.foperate.ros.netty
 
 import io.netty.channel.ChannelHandlerContext
-import io.netty.channel.ChannelOption
 import io.netty.channel.MaxMessagesRecvByteBufAllocator
 import io.netty.channel.socket.DatagramChannel
 import io.netty.channel.socket.InternetProtocolFamily
@@ -49,7 +48,7 @@ class DnsServerImpl private constructor(vertx: VertxInternal, options: DatagramS
         transport.configure(channel, DatagramSocketOptions(options))
 
         val context = vertx.orCreateContext
-        channel.config().setOption(ChannelOption.DATAGRAM_CHANNEL_ACTIVE_ON_REGISTRATION, true)
+        //channel.config().setOption(ChannelOption.DATAGRAM_CHANNEL_ACTIVE_ON_REGISTRATION, true)
         val bufAllocator = channel.config().getRecvByteBufAllocator<MaxMessagesRecvByteBufAllocator>()
         bufAllocator.maxMessagesPerRead(1)
 

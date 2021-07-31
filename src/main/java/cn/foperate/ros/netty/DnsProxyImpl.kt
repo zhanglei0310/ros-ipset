@@ -36,7 +36,7 @@ class DnsProxyImpl(private val vertx: VertxInternal, private val options: DnsCli
         actualCtx = vertx.orCreateContext
         val channel =
             transport.datagramChannel(if (dnsServer.address is Inet4Address) InternetProtocolFamily.IPv4 else InternetProtocolFamily.IPv6)
-        channel.config().setOption(ChannelOption.DATAGRAM_CHANNEL_ACTIVE_ON_REGISTRATION, true) // 用connect代替
+        //channel.config().setOption(ChannelOption.DATAGRAM_CHANNEL_ACTIVE_ON_REGISTRATION, true) // 用bind代替
         val bufAllocator = channel.config().getRecvByteBufAllocator<MaxMessagesRecvByteBufAllocator>()
         bufAllocator.maxMessagesPerRead(1)
         channel.config().allocator = PartialPooledByteBufAllocator.INSTANCE
@@ -58,12 +58,14 @@ class DnsProxyImpl(private val vertx: VertxInternal, private val options: DnsCli
             }
         })
         this.channel = channel
-        /*channel.connect(dnsServer).addListener {
-            if (it.isSuccess) {
-                this.channel = channel
-            }
-        }*/
+        channel.bind(InetSocketAddress("0.0.0.0", 0))
         return this
+    }
+
+    override fun close(): Future<Void> {
+        val promise = actualCtx.promise<Void>()
+        channel?.close()?.addListener(promise)
+        return promise.future()
     }
 
     private inner class Query(dnsQuestion: DnsQuestion) {

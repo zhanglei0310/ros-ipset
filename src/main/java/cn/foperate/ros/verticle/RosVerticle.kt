@@ -183,6 +183,7 @@ class RosVerticle: CoroutineVerticle() {
                     ip as String
                     sendAddRequest(ip, domain)
                 }
+                .onFailure().recoverWithItem(mapOf())
                 .collect().last()
                 .subscribe().with ({
                     message.reply(System.currentTimeMillis())
