@@ -179,11 +179,11 @@ class RosVerticle: CoroutineVerticle() {
                     cache.getIfPresent(it)?.let { timeout ->
                         timeout < System.currentTimeMillis()
                     } ?: true
-                }.onItem().transformToUniAndMerge { ip ->
+                }.onItem().call { ip ->
                     ip as String
                     sendAddRequest(ip, domain)
+                        .onFailure().recoverWithItem(mapOf())
                 }
-                .onFailure().recoverWithItem(mapOf())
                 .collect().last()
                 .subscribe().with ({
                     message.reply(System.currentTimeMillis())

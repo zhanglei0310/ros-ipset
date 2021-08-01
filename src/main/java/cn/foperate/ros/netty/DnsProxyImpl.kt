@@ -25,9 +25,9 @@ class DnsProxyImpl(private val vertx: VertxInternal, private val options: DnsCli
     private val inProgressMap = mutableMapOf<Int, Query>()
     private lateinit var dnsServer: InetSocketAddress
     private lateinit var actualCtx: ContextInternal
-    private var channel: DatagramChannel? = null
+    private lateinit var channel: DatagramChannel
 
-    override fun connect(): DnsProxy {
+    override fun connect(localPort: Int): DnsProxy {
         require(options.host.isNotBlank()){ "必须有服务器的域名" }
         vertx.context
         dnsServer = InetSocketAddress(options.host, options.port)
@@ -40,6 +40,7 @@ class DnsProxyImpl(private val vertx: VertxInternal, private val options: DnsCli
         val bufAllocator = channel.config().getRecvByteBufAllocator<MaxMessagesRecvByteBufAllocator>()
         bufAllocator.maxMessagesPerRead(1)
         channel.config().allocator = PartialPooledByteBufAllocator.INSTANCE
+        channel.config().isAutoClose = false
         actualCtx.nettyEventLoop().register(channel)
         if (options.logActivity) {
             channel.pipeline().addLast("logging", LoggingHandler())
@@ -55,16 +56,17 @@ class DnsProxyImpl(private val vertx: VertxInternal, private val options: DnsCli
 
             override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
                 log.error(cause.message, cause)
+                ctx.fireExceptionCaught(cause) // FIXME 没出现过，还不清楚是否需要继续抛出
             }
         })
         this.channel = channel
-        channel.bind(InetSocketAddress("0.0.0.0", 0))
+        channel.bind(InetSocketAddress("0.0.0.0", localPort)) // FIXME 最终也许要判断是否还需要这种处理
         return this
     }
 
-    override fun close(): Future<Void> {
+    override fun close(): Future<Void> { // 没有用到过，实现总没问题
         val promise = actualCtx.promise<Void>()
-        channel?.close()?.addListener(promise)
+        channel.close().addListener(promise)
         return promise.future()
     }
 
@@ -128,7 +130,7 @@ class DnsProxyImpl(private val vertx: VertxInternal, private val options: DnsCli
                 timerID = -1
                 actualCtx.runOnContext { fail(VertxException("DNS query timeout for $msgId")) }
             }
-            channel!!.writeAndFlush(msg).addListener(ChannelFutureListener { future: ChannelFuture ->
+            channel.writeAndFlush(msg).addListener(ChannelFutureListener { future: ChannelFuture ->
                 if (!future.isSuccess) {
                     actualCtx.emit(future.cause()) { cause -> // 如果出现错误
                         fail(cause)

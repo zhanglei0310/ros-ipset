@@ -69,13 +69,13 @@ class NettyDnsVerticle : CoroutineVerticle() {
                     host = fallback,
                     port = 53,
                     recursionDesired = true // 需要这个选项，否则某些域名的解析会失败
-                ))
+                ), localPort = 1053) // 一种固定端口的尝试，也许会放弃
 
             proxyClient = vertx.createDnsProxy(dnsClientOptionsOf(
                     host = remote,
                     port = remotePort,
                     recursionDesired = true
-                ))
+                ), localPort = 1153)
 
             dnsServer = DnsServerImpl.create(vertx as VertxInternal, dnsServerOptionsOf(
                 port = localPort,
@@ -87,6 +87,8 @@ class NettyDnsVerticle : CoroutineVerticle() {
             }
             dnsServer.listen(localPort, "0.0.0.0").await()
             log.debug("UDP服务已经启动")
+
+
         } catch (e: Exception) {
             log.error(e.message, e)
         }
@@ -148,6 +150,7 @@ class NettyDnsVerticle : CoroutineVerticle() {
                         }
                     }.onFailure { e ->
                         log.error("$questionName 解析失败 ${e.message}", e)
+                        aCache.invalidate(queryKey)
                         // 但是请求失败后，会从备用服务器解析结果
                         if (dnsQuestion.type()== DnsRecordType.A) {
                             val dnsProxy = vertx.createDnsClient(remotePort, remote)
