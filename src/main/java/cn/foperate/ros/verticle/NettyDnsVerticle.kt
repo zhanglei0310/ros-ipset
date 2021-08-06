@@ -10,7 +10,6 @@ import io.vertx.core.Promise
 import io.vertx.core.dns.impl.decoder.RecordDecoder
 import io.vertx.core.eventbus.EventBus
 import io.vertx.core.impl.VertxInternal
-import io.vertx.kotlin.core.dns.dnsClientOptionsOf
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.kotlin.coroutines.CoroutineVerticle
 import io.vertx.kotlin.coroutines.await
@@ -65,17 +64,19 @@ class NettyDnsVerticle : CoroutineVerticle() {
             blockAddress = InetAddress.getByName(block)
 
             eb = vertx.eventBus()
-            backupClient = vertx.createDnsProxy(dnsClientOptionsOf(
+            backupClient = vertx.createDnsProxy(dnsProxyOptionsOf(
                     host = fallback,
                     port = 53,
-                    recursionDesired = true // 需要这个选项，否则某些域名的解析会失败
-                ), localPort = 1053) // 一种固定端口的尝试，也许会放弃
+                    recursionDesired = true, // 需要这个选项，否则某些域名的解析会失败
+                    localPort = 1053)) // 一种固定端口的尝试，也许会放弃
 
-            proxyClient = vertx.createDnsProxy(dnsClientOptionsOf(
+            proxyClient = vertx.createDnsProxy(dnsProxyOptionsOf(
                     host = remote,
                     port = remotePort,
-                    recursionDesired = true
-                ), localPort = 1153)
+                    recursionDesired = true,
+                    localPort = 1153,
+                    timeToLive = 3600L
+            ))
 
             dnsServer = DnsServerImpl.create(vertx as VertxInternal, dnsServerOptionsOf(
                 port = localPort,
@@ -149,7 +150,7 @@ class NettyDnsVerticle : CoroutineVerticle() {
                             }
                         }
                     }.onFailure { e ->
-                        log.error("$questionName 解析失败 ${e.message}", e)
+                        log.error("$questionName 解析失败 ${e.message}")
                         aCache.invalidate(queryKey)
                         // 但是请求失败后，会从备用服务器解析结果
                         if (dnsQuestion.type()== DnsRecordType.A) {
