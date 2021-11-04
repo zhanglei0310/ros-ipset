@@ -2,7 +2,6 @@ package cn.foperate.ros.netty
 
 import io.vertx.codegen.annotations.DataObject
 import io.vertx.core.datagram.DatagramSocketOptions
-import io.vertx.core.dns.DnsClientOptions
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.core.json.jsonObjectOf
 

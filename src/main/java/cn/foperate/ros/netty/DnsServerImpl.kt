@@ -31,7 +31,7 @@ import java.util.*
 /**
  * @author [Norman Maurer](mailto:nmaurer@redhat.com)
  */
-class DnsServerImpl private constructor(vertx: VertxInternal, options: DatagramSocketOptions) :
+class DnsServerImpl internal constructor(vertx: VertxInternal, options: DnsServerOptions) :
     MetricsProvider, DnsServer {
     private val context: ContextInternal
     private val metrics: DatagramSocketMetrics?
@@ -44,7 +44,7 @@ class DnsServerImpl private constructor(vertx: VertxInternal, options: DatagramS
     init {
         val transport = vertx.transport()
         val channel =
-            transport.datagramChannel(if (options.isIpV6) InternetProtocolFamily.IPv6 else InternetProtocolFamily.IPv4)
+            transport.datagramChannel(InternetProtocolFamily.IPv4) // if (options.isIpV6) InternetProtocolFamily.IPv6 else InternetProtocolFamily.IPv4)
         transport.configure(channel, DatagramSocketOptions(options))
 
         val context = vertx.orCreateContext
@@ -66,7 +66,7 @@ class DnsServerImpl private constructor(vertx: VertxInternal, options: DatagramS
         demand = Long.MAX_VALUE
     }
 
-    private fun initial() {
+    internal fun initial() {
         channel.pipeline().addLast(DatagramDnsQueryDecoder())
         channel.pipeline().addLast(DatagramDnsResponseEncoder())
         channel.pipeline().addLast("handler", VertxHandler.create { ctx -> Connection(context, ctx)} )
@@ -224,11 +224,5 @@ class DnsServerImpl private constructor(vertx: VertxInternal, options: DatagramS
 
     companion object {
         private val log = LoggerFactory.getLogger(DnsServerImpl::class.java)
-        fun create(vertx: VertxInternal, options: DatagramSocketOptions): DnsServerImpl {
-            val socket = DnsServerImpl(vertx, options)
-            // Make sure object is fully initiliased to avoid race with async registration
-            socket.initial()
-            return socket
-        }
     }
 }

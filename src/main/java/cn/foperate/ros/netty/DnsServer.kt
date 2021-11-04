@@ -5,6 +5,7 @@ import io.netty.handler.codec.dns.DatagramDnsResponse
 import io.vertx.core.AsyncResult
 import io.vertx.core.Future
 import io.vertx.core.Handler
+import io.vertx.core.impl.VertxInternal
 import io.vertx.core.net.SocketAddress
 
 interface DnsServer {
@@ -27,4 +28,13 @@ interface DnsServer {
 
     // 获取本地地址的工具函数
     fun localAddress(): SocketAddress
+
+    companion object {
+        fun create(vertx: VertxInternal, options: DnsServerOptions): DnsServer {
+            val socket = DnsServerImpl(vertx, options)
+            // Make sure object is fully initiliased to avoid race with async registration
+            socket.initial()
+            return socket
+        }
+    }
 }

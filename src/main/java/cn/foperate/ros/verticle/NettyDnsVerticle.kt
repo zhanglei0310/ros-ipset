@@ -78,7 +78,7 @@ class NettyDnsVerticle : CoroutineVerticle() {
                     timeToLive = 3600L
             ))
 
-            dnsServer = DnsServerImpl.create(vertx as VertxInternal, dnsServerOptionsOf(
+            dnsServer = DnsServer.create(vertx as VertxInternal, dnsServerOptionsOf(
                 port = localPort,
                 host = "0.0.0.0"
             )).handler {
