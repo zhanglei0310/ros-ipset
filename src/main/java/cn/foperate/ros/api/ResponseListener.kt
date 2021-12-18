@@ -5,6 +5,7 @@ package cn.foperate.ros.api
  *
  * @author Aston Mei
  */
+@Deprecated("改用RestAPI实现")
 interface ResponseListener {
     /** receive data from router
      * @param result The data received

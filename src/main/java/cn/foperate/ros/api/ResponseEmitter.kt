@@ -9,6 +9,7 @@ import java.util.concurrent.atomic.AtomicReference
  * Responser的主动式实现，基于Mutiny的响应式流接口
  * @author Aston Mei
  */
+@Deprecated("改用RestAPI实现")
 class ResponseEmitter(defaultListener: ResponseListener): ResponseHandler(defaultListener), MultiEmitter<List<String>> {
 
     // 作为发射器的实现（主动实现）

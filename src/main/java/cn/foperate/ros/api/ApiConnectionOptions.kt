@@ -1,5 +1,6 @@
 package cn.foperate.ros.api
 
+@Deprecated("改用RestAPI实现")
 data class ApiConnectionOptions(
     val username: String,
     val password: String,

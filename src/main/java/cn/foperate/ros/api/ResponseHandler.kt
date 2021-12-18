@@ -9,6 +9,7 @@ import java.util.function.Consumer
  * 从sentence中读取结果的类，使用状态机来实现
  * @author Aston Mei
  */
+@Deprecated("改用RestAPI实现")
 open class ResponseHandler(val defaultListener: ResponseListener): Consumer<List<String>> {
 
     protected val listeners = mutableMapOf<String, ResponseListener>()

@@ -11,6 +11,7 @@ package cn.foperate.ros.api
  *
  * @author Aston Mei
  */
+@Deprecated("改用RestAPI实现")
 class Command(val cmd: String,
               val params: Map<String, String?> = mapOf(),
               val queries: Map<String, String> = mapOf(),

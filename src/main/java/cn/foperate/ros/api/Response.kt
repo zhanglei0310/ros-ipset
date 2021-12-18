@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory
  * A response object returned to the api caller.
  * @author Aston Mei
  */
+@Deprecated("改用RestAPI实现")
 class Response(val state:State) {
     enum class State {
         NONE,

@@ -7,8 +7,8 @@ import io.vertx.core.buffer.Buffer
 import org.slf4j.LoggerFactory
 import java.util.function.Consumer
 
-
 // 从读取的数据协议中获得words并组成sentence的类
+@Deprecated("改用RestAPI实现")
 class ProtocolParser(val emitter: MultiEmitter<in List<String>>): Handler<Buffer>, Consumer<Buffer> {
 
     // 借鉴Vertx中的RecordParser的实现来完成协议解析工作

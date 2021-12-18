@@ -22,6 +22,7 @@ import java.net.UnknownHostException
  *
  * @author Aston Mei
  */
+@Deprecated("改用RestAPI实现")
 class RxApiConnection(val vertx: Vertx, val host: String): AutoCloseable {
 
     enum class ConnectionState {

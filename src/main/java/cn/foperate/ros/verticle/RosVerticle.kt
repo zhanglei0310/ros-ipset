@@ -21,6 +21,7 @@ import java.util.concurrent.TimeUnit
  * 又需要涉及到上下文切换，修改的意义不太大。但是verticle实现回复到标准实现
  * @author Aston Mei
  */
+@Deprecated("改用RestAPI实现")
 class RosVerticle: CoroutineVerticle() {
     private lateinit var rosFwadrKey: String
 
