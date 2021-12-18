@@ -4,6 +4,7 @@ import ch.qos.logback.classic.LoggerContext
 import ch.qos.logback.classic.joran.JoranConfigurator
 import cn.foperate.ros.pac.DomainUtil
 import cn.foperate.ros.verticle.NettyDnsVerticle
+import cn.foperate.ros.verticle.RestVerticle
 import cn.foperate.ros.verticle.RosVerticle
 import io.vertx.core.Vertx
 import io.vertx.core.VertxOptions
@@ -146,7 +147,7 @@ object IPset {
             DomainUtil.loadNetflixList(body)
         }
         vertx.deployVerticle(
-            RosVerticle(), deploymentOptionsOf(
+            RestVerticle(), deploymentOptionsOf(
                 config = jsonObjectOf(
                     "rosFwadrKey" to rosFwadrKey,
                     "rosIp" to rosIp,

@@ -13,12 +13,12 @@ import io.netty.util.concurrent.GenericFutureListener
 import io.vertx.core.AsyncResult
 import io.vertx.core.Future
 import io.vertx.core.Handler
+import io.vertx.core.buffer.impl.PartialPooledByteBufAllocator
 import io.vertx.core.datagram.DatagramSocketOptions
 import io.vertx.core.impl.ContextInternal
 import io.vertx.core.impl.VertxInternal
 import io.vertx.core.net.SocketAddress
 import io.vertx.core.net.impl.ConnectionBase
-import io.vertx.core.net.impl.PartialPooledByteBufAllocator
 import io.vertx.core.net.impl.VertxHandler
 import io.vertx.core.spi.metrics.DatagramSocketMetrics
 import io.vertx.core.spi.metrics.Metrics

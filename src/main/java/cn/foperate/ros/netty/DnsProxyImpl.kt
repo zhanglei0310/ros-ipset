@@ -8,10 +8,10 @@ import io.netty.handler.logging.LoggingHandler
 import io.netty.util.concurrent.Promise
 import io.vertx.core.Future
 import io.vertx.core.VertxException
+import io.vertx.core.buffer.impl.PartialPooledByteBufAllocator
 import io.vertx.core.dns.DnsResponseCode
 import io.vertx.core.impl.ContextInternal
 import io.vertx.core.impl.VertxInternal
-import io.vertx.core.net.impl.PartialPooledByteBufAllocator
 import org.slf4j.LoggerFactory
 import java.net.Inet4Address
 import java.net.InetSocketAddress
