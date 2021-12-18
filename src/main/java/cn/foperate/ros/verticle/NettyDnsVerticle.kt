@@ -5,8 +5,10 @@ import cn.foperate.ros.pac.DomainUtil
 import com.github.benmanes.caffeine.cache.Caffeine
 import io.netty.buffer.Unpooled
 import io.netty.handler.codec.dns.*
+import io.vertx.core.Context
 import io.vertx.core.Future
 import io.vertx.core.Promise
+import io.vertx.core.Vertx
 import io.vertx.core.dns.impl.decoder.RecordDecoder
 import io.vertx.core.eventbus.EventBus
 import io.vertx.core.impl.VertxInternal
@@ -37,14 +39,6 @@ class NettyDnsVerticle : CoroutineVerticle() {
         }
         .build<String, Future<List<DnsRawRecord>>>()
 
-    /*private val proxyCache = Caffeine.newBuilder()
-        .expireAfterWrite(10, TimeUnit.MINUTES)
-        .maximumSize(2)
-        .evictionListener { _: String?, value: DnsProxy?, _ ->
-            value?.close()
-        }
-        .build<String, DnsProxy>()*/
-
     private var localPort: Int = 53  // DNS服务监听的端口
     private lateinit var remote: String  // upstream服务器地址
     private var remotePort: Int = 53  // upstream服务器端口
@@ -53,16 +47,20 @@ class NettyDnsVerticle : CoroutineVerticle() {
 
     private lateinit var eb: EventBus
 
+    override fun init(vertx: Vertx, context: Context) {
+        super.init(vertx, context)
+
+        localPort = config.getInteger("localPort", localPort)
+        remote = config.getString("remote")
+        remotePort = config.getInteger("remotePort", remotePort)
+        fallback = config.getString("fallback")
+        val block = config.getString("blockAddress")
+        // 实际不会发生阻塞
+        blockAddress = InetAddress.getByName(block)
+    }
+
     override suspend fun start() {
         try {
-            localPort = config.getInteger("localPort", localPort)
-            remote = config.getString("remote")
-            remotePort = config.getInteger("remotePort", remotePort)
-            fallback = config.getString("fallback")
-            val block = config.getString("blockAddress")
-            // 实际不会发生阻塞
-            blockAddress = InetAddress.getByName(block)
-
             eb = vertx.eventBus()
             backupClient = vertx.createDnsProxy(dnsProxyOptionsOf(
                     host = fallback,
@@ -138,7 +136,7 @@ class NettyDnsVerticle : CoroutineVerticle() {
                             dnsServer.send(response)
                             if (aRecordIps.isNotEmpty()) {
                                 eb.request<Long>(
-                                    RosVerticle.EVENT_ADDRESS, jsonObjectOf(
+                                    RestVerticle.EVENT_ADDRESS, jsonObjectOf(
                                         "domain" to questionName,
                                         "address" to aRecordIps
                                     )

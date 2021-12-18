@@ -9,10 +9,10 @@
     <version>1.2.1-SNAPSHOT</version>
 
     <properties>
-        <kotlin.version>1.5.31</kotlin.version>
+        <kotlin.version>1.6.10</kotlin.version>
         <kotlin.compiler.jvmTarget>11</kotlin.compiler.jvmTarget>
-        <mutiny.version>2.14.2</mutiny.version>
-        <vertx.version>4.2.0</vertx.version>
+        <mutiny.version>2.16.0</mutiny.version>
+        <vertx.version>4.2.2</vertx.version>
         <main.class>cn.foperate.ros.IPset</main.class>
         <graalvm.version>21.0.0.2</graalvm.version>
     </properties>
@@ -46,19 +46,19 @@
             <groupId>io.netty</groupId>
             <artifactId>netty-transport-native-epoll</artifactId>
             <classifier>linux-x86_64</classifier>
-            <version>4.1.65.Final</version>
+            <version>4.1.72.Final</version>
         </dependency>
         <!-- logback -->
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
-            <version>1.2.3</version>
+            <version>1.2.8</version>
         </dependency>
 
         <dependency>
             <groupId>com.github.ben-manes.caffeine</groupId>
             <artifactId>caffeine</artifactId>
-            <version>2.9.0</version>
+            <version>3.0.5</version>
             <exclusions>
                 <exclusion>
                     <groupId>*</groupId>
@@ -95,7 +95,7 @@
         <dependency>
             <groupId>io.smallrye.reactive</groupId>
             <artifactId>mutiny-kotlin</artifactId>
-            <version>1.1.2</version>
+            <version>1.2.0</version>
         </dependency>
 
         <dependency>
@@ -107,7 +107,7 @@
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
-            <version>4.12</version>
+            <version>4.13.2</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -232,8 +232,8 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <source>1.8</source>
-                    <target>1.8</target>
+                    <source>11</source>
+                    <target>11</target>
                     <encoding>UTF-8</encoding>
                 </configuration>
             </plugin>

@@ -196,6 +196,6 @@ class RosVerticle: CoroutineVerticle() {
 
     companion object {
         private val log = LoggerFactory.getLogger(RosVerticle::class.java.name)
-        val EVENT_ADDRESS: String = RosVerticle::class.java.name
+        private val EVENT_ADDRESS: String = RosVerticle::class.java.name
     }
 }
