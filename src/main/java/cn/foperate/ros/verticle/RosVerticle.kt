@@ -148,7 +148,7 @@ class RosVerticle: CoroutineVerticle() {
                 executeCommandAsMulti(commandWrite)
             }.collect().asList().awaitSuspending()
         log.debug("旧数据清理完毕")
-        DomainUtil.netflixList
+        DomainUtil.netflixIPs
             .forEach { ip ->
                 sendNetflixRequest(ip).subscribe().with({}){}
             }

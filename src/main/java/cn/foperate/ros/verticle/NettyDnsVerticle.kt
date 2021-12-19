@@ -2,22 +2,25 @@ package cn.foperate.ros.verticle
 
 import cn.foperate.ros.netty.*
 import cn.foperate.ros.pac.DomainUtil
-import com.github.benmanes.caffeine.cache.Caffeine
+import cn.foperate.ros.service.CloudflareService
+import cn.foperate.ros.service.QuadService
+import cn.foperate.ros.service.RestService
+import io.netty.buffer.ByteBuf
 import io.netty.buffer.Unpooled
 import io.netty.handler.codec.dns.*
+import io.netty.util.NetUtil
 import io.vertx.core.Context
-import io.vertx.core.Future
-import io.vertx.core.Promise
 import io.vertx.core.Vertx
-import io.vertx.core.dns.impl.decoder.RecordDecoder
+import io.vertx.core.buffer.Buffer
 import io.vertx.core.eventbus.EventBus
 import io.vertx.core.impl.VertxInternal
+import io.vertx.core.json.JsonObject
+import io.vertx.kotlin.core.json.jsonArrayOf
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.kotlin.coroutines.CoroutineVerticle
 import io.vertx.kotlin.coroutines.await
 import org.slf4j.LoggerFactory
 import java.net.InetAddress
-import java.util.concurrent.TimeUnit
 
 /*****
  * 进行DNS过滤、解析和转发，并请求将结果保存到ROS中。
@@ -29,15 +32,6 @@ class NettyDnsVerticle : CoroutineVerticle() {
     private lateinit var backupClient: DnsProxy
     private lateinit var proxyClient: DnsProxy
     private lateinit var dnsServer: DnsServer
-    private val aCache = Caffeine.newBuilder()
-        .expireAfterWrite(10, TimeUnit.MINUTES)
-        .maximumSize(1000)
-        .evictionListener { _: String?, value: Future<List<DnsRawRecord>>?, _ ->
-            value?.onSuccess { list ->
-                list.forEach(DnsRawRecord::release)
-            }
-        }
-        .build<String, Future<List<DnsRawRecord>>>()
 
     private var localPort: Int = 53  // DNS服务监听的端口
     private lateinit var remote: String  // upstream服务器地址
@@ -57,6 +51,25 @@ class NettyDnsVerticle : CoroutineVerticle() {
         val block = config.getString("blockAddress", "224.0.0.1")
         // 实际不会发生阻塞
         blockAddress = InetAddress.getByName(block)
+    }
+
+    private fun addressToBuffer(address: String): ByteBuf {
+        val result = NetUtil.createByteArrayFromIpAddressString(address)/*ByteArray(4)
+        address.split(".")
+            .forEachIndexed { index, s ->
+                result[index] = s.toUByte().toByte()
+            }*/
+        return Unpooled.wrappedBuffer(result)
+    }
+
+    private fun nameToBuffer(name: String): ByteBuf {
+        val buffer = Buffer.buffer()
+        name.split(".")
+            .forEach {
+                buffer.appendUnsignedByte(it.length.toShort())
+                buffer.appendString(it)
+            }
+        return buffer.byteBuf
     }
 
     override suspend fun start() {
@@ -107,16 +120,121 @@ class NettyDnsVerticle : CoroutineVerticle() {
         try {
             val questionName = dnsQuestion.name()
             val questionType = dnsQuestion.type().name()
-            val queryKey = "$questionName($questionType)"
 
             response.addRecord(DnsSection.QUESTION, dnsQuestion)
             log.debug("查询的域名：$dnsQuestion")
             when {
+                DomainUtil.matchNetflix(dnsQuestion) -> {
+                    log.debug("收到一个Netflix请求")
+                    log.debug(dnsQuestion.toString())
+
+                    QuadService.query(questionName, questionType)
+                        .subscribe().with { answers ->
+                            if (answers.isEmpty) {
+                                log.error("$questionName 解析失败")
+                            } else {
+                                val aRecordIps = jsonArrayOf()
+                                answers.forEach { answer -> // 在Alpine上会遇到奇怪的现象会大分片失败，存疑。
+                                    answer as JsonObject
+
+                                    when (val type = answer.getInteger("type")){
+                                        1 -> {
+                                            val ip = answer.getString("data")
+                                            val buf = addressToBuffer(ip)
+                                            val queryAnswer = DefaultDnsRawRecord(answer.getString("name"), DnsRecordType.A, 600, buf)
+                                            response.addRecord(DnsSection.ANSWER, queryAnswer)
+                                            aRecordIps.add(ip)
+                                        }
+                                        5 -> {
+                                            val str = answer.getString("data")
+                                            val buf = nameToBuffer(str)
+                                            val queryAnswer = DefaultDnsRawRecord(answer.getString("name"), DnsRecordType.CNAME, answer.getLong("TTL"), buf)
+                                            response.addRecord(DnsSection.ANSWER, queryAnswer)
+                                        }
+                                        28 -> {
+                                            val ip = answer.getString("data")
+                                            val buf = addressToBuffer(ip)
+                                            val queryAnswer = DefaultDnsRawRecord(answer.getString("name"), DnsRecordType.AAAA, 600, buf)
+                                            response.addRecord(DnsSection.ANSWER, queryAnswer)
+                                        }
+                                        else -> {
+                                            log.error("收到了异常的解析结果： $type")
+                                        }
+                                    }
+                                }
+                                dnsServer.send(response)
+                                if (!aRecordIps.isEmpty) {
+                                    eb.request<Long>(
+                                        RestVerticle.EVENT_ADDRESS, jsonObjectOf(
+                                            "domain" to questionName,
+                                            "address" to aRecordIps
+                                        )
+                                    ).onSuccess {
+                                        log.debug("call success")
+                                    }.onFailure { err ->
+                                        log.error(err.message)
+                                    }
+                                }
+                            }
+                        }
+                }
                 DomainUtil.match(dnsQuestion) -> { // A类查询，在查询名单，且不在逃逸名单里
                     log.debug("gfwlist hint")
                     log.debug(dnsQuestion.toString())
 
-                    val future: Future<List<DnsRawRecord>> = aCache.getIfPresent(queryKey) ?: run {
+                    CloudflareService.query(questionName)
+                        .subscribe().with { answers -> // 由于实现的特殊性，不会有异常分支
+                            if (answers.isEmpty) {
+                                log.error("$questionName 解析失败")
+                                // 但是请求失败后，会从备用服务器解析结果
+                                backupClient.proxy(dnsQuestion).onSuccess {
+                                    log.debug(it.toString())
+                                    for (answer in it) {
+                                        response.addRecord(DnsSection.ANSWER, answer)
+                                    }
+                                    dnsServer.send(response)
+                                }.onFailure {  }
+                            } else {
+                                val aRecordIps = jsonArrayOf()
+                                answers.forEach { answer -> // 在Alpine上会遇到奇怪的现象会大分片失败，存疑。
+                                    answer as JsonObject
+
+                                    when (val type = answer.getInteger("type")){
+                                        1 -> {
+                                            val ip = answer.getString("data")
+                                            val buf = addressToBuffer(ip)
+                                            val queryAnswer = DefaultDnsRawRecord(answer.getString("name"), DnsRecordType.A, 600, buf)
+                                            response.addRecord(DnsSection.ANSWER, queryAnswer)
+                                            aRecordIps.add(ip)
+                                        }
+                                        5 -> {
+                                            val str = answer.getString("data")
+                                            val buf = nameToBuffer(str)
+                                            val queryAnswer = DefaultDnsRawRecord(answer.getString("name"), DnsRecordType.CNAME, answer.getLong("TTL"), buf)
+                                            response.addRecord(DnsSection.ANSWER, queryAnswer)
+                                        }
+                                        else -> {
+                                            log.error("收到了异常的解析结果： $type")
+                                        }
+                                    }
+                                }
+                                dnsServer.send(response)
+                                if (!aRecordIps.isEmpty) {
+                                    eb.request<Long>(
+                                        RestVerticle.EVENT_ADDRESS, jsonObjectOf(
+                                            "domain" to questionName,
+                                            "address" to aRecordIps
+                                        )
+                                    ).onSuccess {
+                                        log.debug("call success")
+                                    }.onFailure { err ->
+                                        log.error(err.message)
+                                    }
+                                }
+                            }
+                        }
+
+                    /*val future: Future<List<DnsRawRecord>> = run {
                         val promise = Promise.promise<List<DnsRawRecord>>()
                         proxyClient.proxy(dnsQuestion).onSuccess {
                             promise.tryComplete(it)
@@ -128,15 +246,19 @@ class NettyDnsVerticle : CoroutineVerticle() {
                     future.onSuccess {
                         log.debug("Success with ${it.size}")
                         if (it.isNotEmpty()) {
-                            if (dnsQuestion.type()== DnsRecordType.A) {
-                                aCache.put(queryKey, future)
-                            }
                             val aRecordIps = mutableListOf<String>()
                             it.forEach { answer -> // 在Alpine上会遇到奇怪的现象会大分片失败，存疑。
                                 response.addRecord(DnsSection.ANSWER, answer.retain())
                                 if (answer.type()==DnsRecordType.A) {
                                     val address = RecordDecoder.decode<String>(answer)
                                     aRecordIps.add(address)
+                                } else {
+                                    log.debug(answer.type().name())
+                                    val address = answer.content()
+                                    address.forEachByte { b ->
+                                        log.debug(b.toString())
+                                        true
+                                    }
                                 }
                             }
                             dnsServer.send(response)
@@ -155,7 +277,6 @@ class NettyDnsVerticle : CoroutineVerticle() {
                         }
                     }.onFailure { e ->
                         log.error("$questionName 解析失败 ${e.message}")
-                        aCache.invalidate(queryKey)
                         // 但是请求失败后，会从备用服务器解析结果
                         if (dnsQuestion.type()== DnsRecordType.A) {
                             val dnsProxy = vertx.createDnsClient(remotePort, remote)
@@ -174,7 +295,7 @@ class NettyDnsVerticle : CoroutineVerticle() {
                                 log.error(it.message)
                             }
                         }
-                    }
+                    }*/
                 }
                 DomainUtil.matchBlock(questionName) -> {
                     log.debug("adBlock matched")

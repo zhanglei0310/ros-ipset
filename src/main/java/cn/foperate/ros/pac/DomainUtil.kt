@@ -14,7 +14,8 @@ object DomainUtil {
     private val blackList = HashSet<String>()
     private val whiteList = HashSet<String>()
     private val adblockList = HashSet<String>()
-    val netflixList = HashSet<String>()
+    private val netflixList = HashSet<String>()
+    val netflixIPs = HashSet<String>()
 
     fun loadBlackList(file: File) {
         val reader = file.bufferedReader(Charset.defaultCharset())
@@ -25,6 +26,13 @@ object DomainUtil {
 
     fun loadNetflixList(buffer: Buffer) {
         val reader = StringReader(buffer.toString(Charsets.UTF_8))
+        val records = reader.readLines()
+        netflixIPs.addAll(records)
+        log.info("${records.size} records of netflix IPs loaded")
+    }
+
+    fun loadNetflixList(file: File) {
+        val reader = file.bufferedReader(Charset.defaultCharset())
         val records = reader.readLines()
         netflixList.addAll(records)
         log.info("${records.size} records of netflix list loaded")
@@ -67,6 +75,19 @@ object DomainUtil {
         if (dnsQuestion.type()== DnsRecordType.A) {
             val name = dnsQuestion.name()
             return match(name)
+        }
+        return false
+    }
+
+    fun matchNetflix(dnsQuestion: DnsQuestion):Boolean {
+        val name = dnsQuestion.name()
+        val checkName = if (name.endsWith(".")) {
+            name.substring(0, name.length-1)
+        } else name
+        parse(checkName).forEach {
+            if (netflixList.contains(it)) {
+                return true
+            }
         }
         return false
     }

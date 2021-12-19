@@ -3,8 +3,10 @@ package cn.foperate.ros
 import ch.qos.logback.classic.LoggerContext
 import ch.qos.logback.classic.joran.JoranConfigurator
 import cn.foperate.ros.pac.DomainUtil
+import cn.foperate.ros.service.CloudflareService
+import cn.foperate.ros.service.QuadService
 import cn.foperate.ros.verticle.NettyDnsVerticle
-import cn.foperate.ros.verticle.RestService
+import cn.foperate.ros.service.RestService
 import cn.foperate.ros.verticle.RestVerticle
 import io.vertx.config.ConfigRetriever
 import io.vertx.core.Vertx
@@ -86,6 +88,10 @@ object IPset {
             .forEach {
                 DomainUtil.loadAdblockList(checkFile(it))
             }
+        lists.getString("netflix", "netflix.txt")
+            .let {
+                DomainUtil.loadNetflixList(checkFile(it))
+            }
 
         logger.info("GFWList load completed")
 
@@ -110,7 +116,10 @@ object IPset {
                     }
         }
 
-        RestService.init(io.vertx.mutiny.core.Vertx(vertx), config.getJsonObject("ros"))
+        val mutiny = io.vertx.mutiny.core.Vertx(vertx)
+        RestService.init(mutiny, config.getJsonObject("ros"))
+        CloudflareService.init(mutiny)
+        QuadService.init(mutiny)
 
         vertx.deployVerticle(
             RestVerticle(), deploymentOptionsOf(

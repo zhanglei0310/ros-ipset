@@ -1,4 +1,4 @@
-package cn.foperate.ros.verticle
+package cn.foperate.ros.service
 
 import io.smallrye.mutiny.Uni
 import io.vertx.core.json.JsonArray
@@ -55,18 +55,41 @@ object RestService {
             }
     }
 
-    fun addProxyAddress(ip: String, domain: String): Uni<JsonObject> {
-        val item = jsonObjectOf(
-            "list" to rosListKey,
-            "address" to ip,
-            "timeout" to "24h",
-            "comment" to domain
-        )
-        return client
-            .put("$base/ip/firewall/address-list")
+    fun addOrUpdateProxyAddress(ip: String, domain: String): Uni<JsonObject> {
+        return client.get("$base/ip/firewall/address-list")
             .basicAuthentication(rosUser, rosPwd)
-            .sendJsonObject(item)
-            .onItem().transform { it.bodyAsJsonObject() }
+            .addQueryParam("list", rosListKey)
+            .addQueryParam("address", ip)
+            .addQueryParam(".proplist", ".id")
+            .send()
+            .onItem().transform {
+                it.bodyAsJsonArray()
+            }
+            .onItem().transformToUni { result ->
+                if (result.isEmpty) {
+                    val item = jsonObjectOf(
+                        "list" to rosListKey,
+                        "address" to ip,
+                        "timeout" to "2h",
+                        "comment" to domain
+                    )
+                    client
+                        .put("$base/ip/firewall/address-list")
+                        .basicAuthentication(rosUser, rosPwd)
+                        .sendJsonObject(item)
+                        .onItem().transform { it.bodyAsJsonObject() }
+                } else {
+                    val id = result.getJsonObject(0).getString(".id")
+                    val item = jsonObjectOf(
+                        "timeout" to "2h"
+                    )
+                    client.put("$base/ip/firewall/address-list/$id")
+                        .basicAuthentication(rosUser, rosPwd)
+                        .sendJsonObject(item)
+                        .onItem().transform { it.bodyAsJsonObject() }
+                }
+            }
+
     }
 
     fun addStaticAddress(ip: String, domain: String, listName: String = rosListKey ): Uni<JsonObject> {
