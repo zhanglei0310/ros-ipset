@@ -53,8 +53,8 @@ class NettyDnsVerticle : CoroutineVerticle() {
         localPort = config.getInteger("localPort", localPort)
         remote = config.getString("remote")
         remotePort = config.getInteger("remotePort", remotePort)
-        fallback = config.getString("fallback")
-        val block = config.getString("blockAddress")
+        fallback = config.getString("direct")
+        val block = config.getString("blockAddress", "224.0.0.1")
         // 实际不会发生阻塞
         blockAddress = InetAddress.getByName(block)
     }
@@ -87,6 +87,12 @@ class NettyDnsVerticle : CoroutineVerticle() {
             dnsServer.listen(localPort, "0.0.0.0").await()
             log.debug("UDP服务已经启动")
 
+            RestService.addStaticAddress(remote, "DNS")
+                .subscribe().with({
+                    log.debug("DNS服务已加到列表中")
+                }) { err ->
+                    log.error(err.message)
+                }
 
         } catch (e: Exception) {
             log.error(e.message, e)

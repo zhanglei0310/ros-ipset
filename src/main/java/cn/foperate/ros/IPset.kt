@@ -4,78 +4,32 @@ import ch.qos.logback.classic.LoggerContext
 import ch.qos.logback.classic.joran.JoranConfigurator
 import cn.foperate.ros.pac.DomainUtil
 import cn.foperate.ros.verticle.NettyDnsVerticle
+import cn.foperate.ros.verticle.RestService
 import cn.foperate.ros.verticle.RestVerticle
+import io.vertx.config.ConfigRetriever
 import io.vertx.core.Vertx
-import io.vertx.core.http.HttpMethod
 import io.vertx.core.logging.SLF4JLogDelegateFactory
+import io.vertx.ext.web.client.WebClient
 import io.vertx.kotlin.core.deploymentOptionsOf
-import io.vertx.kotlin.core.json.jsonObjectOf
+import io.vertx.kotlin.core.json.jsonArrayOf
 import io.vertx.kotlin.core.vertxOptionsOf
 import io.vertx.kotlin.coroutines.await
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import java.io.File
-import java.io.FileInputStream
-import java.io.IOException
 import java.net.URL
-import java.util.*
 
 object IPset {
     private val logger = LoggerFactory.getLogger(IPset::class.java)
 
-    private lateinit var gfwlistPath: String
-    private lateinit var netflixPath: String
-    private lateinit var whitelistPath: String
-    private lateinit var rosUser: String
-    private lateinit var rosPwd: String
-    private lateinit var rosIp: String
-    private lateinit var rosFwadrKey: String
-    private var localPort: Int = 53
-    private lateinit var remote: String
-    private var remotePort: Int = 53
-    private var fallback: String = "223.6.6.6"
-
-    private lateinit var adblockPath: String
-    private var blockAddress: String = "224.0.0.1"
-
     private fun checkFile(path: String): File {
-        val file = File(path)
-        if (!file.exists() || !file.isFile) {
+        val classLoader = javaClass.classLoader
+        val resource = classLoader.getResource(path)
+
+        if (resource == null) {
             throw RuntimeException("$path not found")
-        }
-        return file
-    }
-
-    @Throws(IOException::class)
-    private fun readProp(configFilePath: String) {
-
-        val file = checkFile(configFilePath)
-        val properties = Properties()
-        properties.load(FileInputStream(file))
-        gfwlistPath = properties.getProperty("gfwlistPath", "gfwlist.txt")
-        netflixPath = properties.getProperty("netflixPath", "https://cdn.jsdelivr.net/gh/QiuSimons/Netflix_IP@master/NF_only.txt")
-        whitelistPath = properties.getProperty("whitelistPath", "")
-        adblockPath = properties.getProperty("adblockPath", "")
-        blockAddress = properties.getProperty("blockAddress", blockAddress)
-        rosUser = properties.getProperty("rosUser")
-        rosPwd = properties.getProperty("rosPwd")
-        rosIp = properties.getProperty("rosIp")
-        rosFwadrKey = properties.getProperty("rosFwadrKey")
-        remote = properties.getProperty("remote")
-
-        val fb = properties.getProperty("fallback")
-        if (!fb.isNullOrBlank()) {
-            fallback = fb
-        }
-
-        val localPortStr = properties.getProperty("localPort")
-        if (!localPortStr.isNullOrBlank()) {
-            localPort = Integer.valueOf(localPortStr)
-        }
-
-        val remotePortStr = properties.getProperty("remotePort")
-        if (!remotePortStr.isNullOrBlank()) {
-            remotePort = Integer.valueOf(remotePortStr)
+        } else {
+            return File(resource.file)
         }
     }
 
@@ -101,71 +55,76 @@ object IPset {
 
         setLogger()
 
-        var configFilePath = "jrodns.properties"
-        if (args.isNotEmpty()) {
-            configFilePath = args[0]
-        }
+        val vertx = Vertx.vertx(vertxOptionsOf(
+            preferNativeTransport = true
+        ))
 
-        readProp(configFilePath)
+        val config = ConfigRetriever.create(vertx)
+            .config
+            .await()
+        logger.info("config file loaded success")
 
-        logger.info("config file verify success")
+        val lists = config.getJsonObject("list")
 
-        logger.info("RosService init completed")
+        logger.debug(lists.encodePrettily())
 
-        gfwlistPath.split((","))
+        lists.getJsonArray("proxy", jsonArrayOf("gfwlist.txt"))
+            .map { it as String }
             .filter(String::isNotBlank)
             .forEach {
                 DomainUtil.loadBlackList(checkFile(it))
             }
-        whitelistPath.split(",")
+        lists.getJsonArray("direct")
+            .map { it as String }
             .filter(String::isNotBlank)
             .forEach {
-                DomainUtil.loadWhiteList(it)
+                DomainUtil.loadWhiteList(checkFile(it))
             }
-        adblockPath.split(",")
+        lists.getJsonArray("block")
+            .map { it as String }
             .filter(String::isNotBlank)
             .forEach {
-                DomainUtil.loadAdblockList(it)
+                DomainUtil.loadAdblockList(checkFile(it))
             }
 
         logger.info("GFWList load completed")
 
-        val vertx = Vertx.vertx(vertxOptionsOf(
-            preferNativeTransport = true
-        ))
         val dns = vertx.createDnsClient(53, "223.5.5.5")
-        netflixPath.let {
-            val url = URL(it)
-            val host = dns.lookup4(url.host).await()
-            val client = vertx.createHttpClient()
-            val request = client.request(HttpMethod.GET, 80, host, it).await()
-            request.host = url.host
-            val response = request.send().await()
-            val body = response.body().await()
-            DomainUtil.loadNetflixList(body)
+        lists.getString("netflix", "https://cdn.jsdelivr.net/gh/QiuSimons/Netflix_IP@master/NF_only.txt")
+            .let {
+                val url = URL(it)
+                val host = url.host
+                dns.lookup4(host)
+                    .compose { ip ->
+                        val client = WebClient.create(vertx)
+                        val port = if (url.port==-1) 443 else url.port
+                        client.get(port, ip, it).send()
+                    }
+                    .onSuccess { res ->
+                        val buffer = res.bodyAsBuffer()
+                        DomainUtil.loadNetflixList(buffer)
+                        logger.debug("Netflix地址加载成功")
+                    }
+                    .onFailure { error ->
+                        logger.error(error.message, error)
+                    }
         }
+
+        RestService.init(io.vertx.mutiny.core.Vertx(vertx), config.getJsonObject("ros"))
+
         vertx.deployVerticle(
             RestVerticle(), deploymentOptionsOf(
-                config = jsonObjectOf(
-                    "rosFwadrKey" to rosFwadrKey,
-                    "rosIp" to rosIp,
-                    "rosUser" to rosUser,
-                    "rosPwd" to rosPwd
-                )
+                config = config.getJsonObject("ros")
             )
         ).onFailure { e ->
-            logger.error(e.message)
+            logger.error(e.message, e)
             vertx.close()
+        }.onSuccess {
+            logger.info("RosService init completed")
         }
         vertx.deployVerticle(
             NettyDnsVerticle(), deploymentOptionsOf(
-                config = jsonObjectOf(
-                    "remotePort" to remotePort,
-                    "remote" to remote,
-                    "localPort" to localPort,
-                    "fallback" to fallback,
-                    "blockAddress" to blockAddress
-                )
+                config = config.getJsonObject("dns")
             )
         )
 

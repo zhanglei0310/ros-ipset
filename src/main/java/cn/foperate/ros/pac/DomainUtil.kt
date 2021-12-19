@@ -16,12 +16,6 @@ object DomainUtil {
     private val adblockList = HashSet<String>()
     val netflixList = HashSet<String>()
 
-    /*init {
-        blackList.add("google.com")
-        blackList.add("apple.com")
-        whiteList.add("www.apple.com")
-    }*/
-
     fun loadBlackList(file: File) {
         val reader = file.bufferedReader(Charset.defaultCharset())
         val records = reader.lines().filter { it.isNotBlank() }.toList()
@@ -36,15 +30,7 @@ object DomainUtil {
         log.info("${records.size} records of netflix list loaded")
     }
 
-    fun loadWhiteList(fileName: String) {
-        if (fileName.isNotBlank()) try {
-            val file = File(fileName)
-            log.info("try load white list file $fileName")
-            loadWhiteList(file)
-        } catch (e:RuntimeException) {}
-    }
-
-    private fun loadWhiteList(file: File) {
+    fun loadWhiteList(file: File) {
         val reader = file.bufferedReader(Charset.defaultCharset())
         val records = reader.lines()
             .filter { it.isNotBlank() }
@@ -53,15 +39,7 @@ object DomainUtil {
         log.info("${records.size} records of black list loaded")
     }
 
-    fun loadAdblockList(fileName: String) {
-        if (fileName.isNotBlank()) try {
-            val file = File(fileName)
-            log.info("try load adblock list file $fileName")
-            loadAdblockList(file)
-        } catch (e:java.lang.RuntimeException) {}
-    }
-
-    private fun loadAdblockList(file:File) {
+    fun loadAdblockList(file:File) {
         val reader = file.bufferedReader(Charset.defaultCharset())
         val records = reader.lines()
             .filter { it.isNotBlank() }

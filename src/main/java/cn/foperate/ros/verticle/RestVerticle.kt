@@ -6,7 +6,6 @@ import io.smallrye.mutiny.Multi
 import io.smallrye.mutiny.coroutines.awaitSuspending
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.coroutines.CoroutineVerticle
-import io.vertx.mutiny.core.Vertx
 import org.slf4j.LoggerFactory
 import java.util.concurrent.TimeUnit
 
@@ -14,11 +13,10 @@ class RestVerticle: CoroutineVerticle() {
     private val cache = Caffeine.newBuilder()
         .expireAfterWrite(24, TimeUnit.HOURS)
         .build<String, Long>()
-    private var rosFwadrKey = "PROXY"
+    private var rosListKey = "PROXY"
 
     override suspend fun start() {
-        RestService.init(Vertx(vertx), config)
-        rosFwadrKey = config.getString("rosFwadrKey")
+        rosListKey = config.getString("listName")
         flushNetflix()
 
         val eb = vertx.eventBus()
@@ -61,12 +59,12 @@ class RestVerticle: CoroutineVerticle() {
         log.debug("旧数据清理完毕")
         DomainUtil.netflixList
             .forEach { ip ->
-                RestService.addNetflixAddress(ip)
+                RestService.addStaticAddress(ip, "NETFLIX", "NETFLIX")
                     .subscribe().with({}){}
             }
     }
 
-    private fun loadCache() = RestService.queryAddressList(rosFwadrKey)
+    private fun loadCache() = RestService.queryAddressList(rosListKey)
         .onItem().transformToMulti { Multi.createFrom().iterable(it) }
         .onItem().transform { it as JsonObject
             val timeout = if (it.containsKey("timeout")) {

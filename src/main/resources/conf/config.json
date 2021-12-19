@@ -1,0 +1,22 @@
+{
+  "list": {
+    "proxy": ["gfwlist.txt"],
+    "block": ["reject-list.txt"],
+    "direct": []
+  },
+  "dns":{
+    "localPort": 53,
+    "remote": "8.8.8.8",
+    "remotePort": 53,
+    "direct": "223.5.5.5",
+    "directPort": 53,
+    "blockAddress": "224.0.0.1"
+  },
+  "ros": {
+    "host": "192.168.1.1",
+    "port": 443,
+    "user": "jrodns",
+    "password": "123456",
+    "listName": "jrodns"
+  }
+}

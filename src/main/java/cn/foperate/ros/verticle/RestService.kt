@@ -13,21 +13,26 @@ object RestService {
     private val log = LoggerFactory.getLogger(RestService::class.java)
     private val base = "/rest"
     private lateinit var client: WebClient
-    private val rosFwadrKey = "PROXY"
+    private lateinit var rosListKey: String
+    private lateinit var rosUser: String
+    private lateinit var rosPwd: String
 
     fun init(vertx: Vertx, config: JsonObject) {
         client = WebClient.create(vertx, webClientOptionsOf(
-            defaultHost = "192.168.28.1",
-            defaultPort = 443,
+            defaultHost = config.getString("host"),
+            defaultPort = config.getInteger("port", 443),
             ssl = true,
             trustAll = true,
-            verifyHost = false,
+            verifyHost = false
         ))
+        rosListKey = config.getString("listName")
+        rosUser = config.getString("user")
+        rosPwd = config.getString("password")
     }
 
     fun queryAddressListIDs(list: String): Uni<List<String>> {
         return client.get("$base/ip/firewall/address-list")
-            .basicAuthentication("jdns", "Ocwesw2r3")
+            .basicAuthentication(rosUser, rosPwd)
             .addQueryParam("list", list)
             .addQueryParam(".proplist", ".id")
             .send()
@@ -42,7 +47,7 @@ object RestService {
 
     fun queryAddressList(list: String): Uni<JsonArray> {
         return client.get("$base/ip/firewall/address-list")
-            .basicAuthentication("jdns", "Ocwesw2r3")
+            .basicAuthentication(rosUser, rosPwd)
             .addQueryParam("list", list)
             .send()
             .onItem().transform {
@@ -52,26 +57,27 @@ object RestService {
 
     fun addProxyAddress(ip: String, domain: String): Uni<JsonObject> {
         val item = jsonObjectOf(
-            "list" to rosFwadrKey,
+            "list" to rosListKey,
             "address" to ip,
             "timeout" to "24h",
             "comment" to domain
         )
         return client
             .put("$base/ip/firewall/address-list")
-            .basicAuthentication("jdns", "Ocwesw2r3")
+            .basicAuthentication(rosUser, rosPwd)
             .sendJsonObject(item)
             .onItem().transform { it.bodyAsJsonObject() }
     }
 
-    fun addNetflixAddress(ip: String): Uni<JsonObject> {
+    fun addStaticAddress(ip: String, domain: String, listName: String = rosListKey ): Uni<JsonObject> {
         val item = jsonObjectOf(
-            "list" to "NETFLIX",
-            "address" to ip
+            "list" to listName,
+            "address" to ip,
+            "comment" to domain
         )
         return client
             .put("$base/ip/firewall/address-list")
-            .basicAuthentication("jdns", "Ocwesw2r3")
+            .basicAuthentication(rosUser, rosPwd)
             .sendJsonObject(item)
             .onItem().transform { it.bodyAsJsonObject() }
     }
@@ -79,7 +85,7 @@ object RestService {
     fun deleteAddressListItem(id: String): Uni<String> {
         return client
             .delete("$base/ip/firewall/address-list/$id")
-            .basicAuthentication("jdns", "Ocwesw2r3")
+            .basicAuthentication(rosUser, rosPwd)
             .send()
             .onItem().transform { id }
     }
