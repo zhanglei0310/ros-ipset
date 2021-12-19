@@ -100,7 +100,8 @@ class NettyDnsVerticle : CoroutineVerticle() {
             dnsServer.listen(localPort, "0.0.0.0").await()
             log.debug("UDP服务已经启动")
 
-            RestService.addStaticAddress(remote, "DNS")
+            RestService.addStaticAddress("1.1.1.1", "DNS")
+                .onItem().transformToUni { _ -> RestService.addStaticAddress("9.9.9.9", "DNS") }
                 .subscribe().with({
                     log.debug("DNS服务已加到列表中")
                 }) { err ->
@@ -131,7 +132,8 @@ class NettyDnsVerticle : CoroutineVerticle() {
                     QuadService.query(questionName, questionType)
                         .subscribe().with { answers ->
                             if (answers.isEmpty) {
-                                log.error("$questionName 解析失败")
+                                val dest = response.recipient().address.toString()
+                                log.error("$questionName 解析失败: $dest")
                             } else {
                                 val aRecordIps = jsonArrayOf()
                                 answers.forEach { answer -> // 在Alpine上会遇到奇怪的现象会大分片失败，存疑。
@@ -178,6 +180,16 @@ class NettyDnsVerticle : CoroutineVerticle() {
                             }
                         }
                 }
+                DomainUtil.matchBlock(questionName) -> {
+                    val dest = response.recipient().address.toString()
+                    log.info("$questionName 被阻止: $dest")
+                    //val reply = blockMessage(message)
+                    //serverSocket.send(Buffer.buffer(reply), request.sender().port(), request.sender().host())
+                    val buf = Unpooled.wrappedBuffer(blockAddress.address)
+                    val queryAnswer = DefaultDnsRawRecord(dnsQuestion.name(), DnsRecordType.A, 600, buf)
+                    response.addRecord(DnsSection.ANSWER, queryAnswer)
+                    dnsServer.send(response)
+                }
                 DomainUtil.match(dnsQuestion) -> { // A类查询，在查询名单，且不在逃逸名单里
                     log.debug("gfwlist hint")
                     log.debug(dnsQuestion.toString())
@@ -185,7 +197,8 @@ class NettyDnsVerticle : CoroutineVerticle() {
                     CloudflareService.query(questionName)
                         .subscribe().with { answers -> // 由于实现的特殊性，不会有异常分支
                             if (answers.isEmpty) {
-                                log.error("$questionName 解析失败")
+                                val dest = response.recipient().address.toString()
+                                log.error("$questionName 解析失败: $dest")
                                 // 但是请求失败后，会从备用服务器解析结果
                                 backupClient.proxy(dnsQuestion).onSuccess {
                                     log.debug(it.toString())
@@ -296,15 +309,6 @@ class NettyDnsVerticle : CoroutineVerticle() {
                             }
                         }
                     }*/
-                }
-                DomainUtil.matchBlock(questionName) -> {
-                    log.debug("adBlock matched")
-                    //val reply = blockMessage(message)
-                    //serverSocket.send(Buffer.buffer(reply), request.sender().port(), request.sender().host())
-                    val buf = Unpooled.wrappedBuffer(blockAddress.address)
-                    val queryAnswer = DefaultDnsRawRecord(dnsQuestion.name(), DnsRecordType.A, 600, buf)
-                    response.addRecord(DnsSection.ANSWER, queryAnswer)
-                    dnsServer.send(response)
                 }
                 else -> {
                     backupClient.proxy(dnsQuestion).onSuccess {
