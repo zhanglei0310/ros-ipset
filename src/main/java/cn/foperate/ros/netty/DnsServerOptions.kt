@@ -2,7 +2,6 @@ package cn.foperate.ros.netty
 
 import io.vertx.codegen.annotations.DataObject
 import io.vertx.core.datagram.DatagramSocketOptions
-import io.vertx.core.dns.DnsClientOptions
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.core.json.jsonObjectOf
 
@@ -93,17 +92,6 @@ class DnsServerOptions(): DatagramSocketOptions() {
     }
 
     /**
-     * Set to true to enabled network activity logging: Netty's pipeline is configured for logging on Netty's logger.
-     *
-     * @param logActivity true for logging the network activity
-     * @return a reference to this, so the API can be used fluently
-     */
-    override fun setLogActivity(logActivity: Boolean): DnsServerOptions {
-        this.logActivity = logActivity
-        return this
-    }
-
-    /**
      * Set whether or not recursion is desired
      *
      * @param recursionDesired the new value
@@ -161,7 +149,7 @@ fun dnsServerOptionsOf(
         this.setHost(host)
     }
     if (logActivity != null) {
-        this.setLogActivity(logActivity)
+        this.logActivity = logActivity
     }
     if (port != null) {
         this.setPort(port)

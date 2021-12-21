@@ -1,5 +1,7 @@
 package cn.foperate.ros.pac
 
+import io.netty.handler.codec.dns.DnsQuestion
+import io.netty.handler.codec.dns.DnsRecordType
 import io.vertx.core.buffer.Buffer
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -12,13 +14,8 @@ object DomainUtil {
     private val blackList = HashSet<String>()
     private val whiteList = HashSet<String>()
     private val adblockList = HashSet<String>()
-    val netflixList = HashSet<String>()
-
-    /*init {
-        blackList.add("google.com")
-        blackList.add("apple.com")
-        whiteList.add("www.apple.com")
-    }*/
+    private val netflixList = HashSet<String>()
+    val netflixIPs = HashSet<String>()
 
     fun loadBlackList(file: File) {
         val reader = file.bufferedReader(Charset.defaultCharset())
@@ -30,19 +27,18 @@ object DomainUtil {
     fun loadNetflixList(buffer: Buffer) {
         val reader = StringReader(buffer.toString(Charsets.UTF_8))
         val records = reader.readLines()
+        netflixIPs.addAll(records)
+        log.info("${records.size} records of netflix IPs loaded")
+    }
+
+    fun loadNetflixList(file: File) {
+        val reader = file.bufferedReader(Charset.defaultCharset())
+        val records = reader.readLines()
         netflixList.addAll(records)
         log.info("${records.size} records of netflix list loaded")
     }
 
-    fun loadWhiteList(fileName: String) {
-        if (fileName.isNotBlank()) try {
-            val file = File(fileName)
-            log.info("try load white list file $fileName")
-            loadWhiteList(file)
-        } catch (e:RuntimeException) {}
-    }
-
-    private fun loadWhiteList(file: File) {
+    fun loadWhiteList(file: File) {
         val reader = file.bufferedReader(Charset.defaultCharset())
         val records = reader.lines()
             .filter { it.isNotBlank() }
@@ -51,15 +47,7 @@ object DomainUtil {
         log.info("${records.size} records of black list loaded")
     }
 
-    fun loadAdblockList(fileName: String) {
-        if (fileName.isNotBlank()) try {
-            val file = File(fileName)
-            log.info("try load adblock list file $fileName")
-            loadAdblockList(file)
-        } catch (e:java.lang.RuntimeException) {}
-    }
-
-    private fun loadAdblockList(file:File) {
+    fun loadAdblockList(file:File) {
         val reader = file.bufferedReader(Charset.defaultCharset())
         val records = reader.lines()
             .filter { it.isNotBlank() }
@@ -83,13 +71,26 @@ object DomainUtil {
         return false
     }
 
-    /*fun match(dnsQuestion: DnsQuestion):Boolean {
+    fun match(dnsQuestion: DnsQuestion):Boolean {
         if (dnsQuestion.type()== DnsRecordType.A) {
             val name = dnsQuestion.name()
             return match(name)
         }
         return false
-    }*/
+    }
+
+    fun matchNetflix(dnsQuestion: DnsQuestion):Boolean {
+        val name = dnsQuestion.name()
+        val checkName = if (name.endsWith(".")) {
+            name.substring(0, name.length-1)
+        } else name
+        parse(checkName).forEach {
+            if (netflixList.contains(it)) {
+                return true
+            }
+        }
+        return false
+    }
 
     fun parse(domain: String):List<String> {
         val result = mutableListOf(domain)

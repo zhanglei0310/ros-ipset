@@ -1,7 +1,6 @@
 package cn.foperate.ros.netty
 
 import io.netty.channel.ChannelHandlerContext
-import io.netty.channel.ChannelOption
 import io.netty.channel.MaxMessagesRecvByteBufAllocator
 import io.netty.channel.socket.DatagramChannel
 import io.netty.channel.socket.InternetProtocolFamily
@@ -14,12 +13,12 @@ import io.netty.util.concurrent.GenericFutureListener
 import io.vertx.core.AsyncResult
 import io.vertx.core.Future
 import io.vertx.core.Handler
+import io.vertx.core.buffer.impl.PartialPooledByteBufAllocator
 import io.vertx.core.datagram.DatagramSocketOptions
 import io.vertx.core.impl.ContextInternal
 import io.vertx.core.impl.VertxInternal
 import io.vertx.core.net.SocketAddress
 import io.vertx.core.net.impl.ConnectionBase
-import io.vertx.core.net.impl.PartialPooledByteBufAllocator
 import io.vertx.core.net.impl.VertxHandler
 import io.vertx.core.spi.metrics.DatagramSocketMetrics
 import io.vertx.core.spi.metrics.Metrics
@@ -32,7 +31,7 @@ import java.util.*
 /**
  * @author [Norman Maurer](mailto:nmaurer@redhat.com)
  */
-class DnsServerImpl private constructor(vertx: VertxInternal, options: DatagramSocketOptions) :
+class DnsServerImpl internal constructor(vertx: VertxInternal, options: DnsServerOptions) :
     MetricsProvider, DnsServer {
     private val context: ContextInternal
     private val metrics: DatagramSocketMetrics?
@@ -45,11 +44,11 @@ class DnsServerImpl private constructor(vertx: VertxInternal, options: DatagramS
     init {
         val transport = vertx.transport()
         val channel =
-            transport.datagramChannel(if (options.isIpV6) InternetProtocolFamily.IPv6 else InternetProtocolFamily.IPv4)
+            transport.datagramChannel(InternetProtocolFamily.IPv4) // if (options.isIpV6) InternetProtocolFamily.IPv6 else InternetProtocolFamily.IPv4)
         transport.configure(channel, DatagramSocketOptions(options))
 
         val context = vertx.orCreateContext
-        channel.config().setOption(ChannelOption.DATAGRAM_CHANNEL_ACTIVE_ON_REGISTRATION, true)
+        //channel.config().setOption(ChannelOption.DATAGRAM_CHANNEL_ACTIVE_ON_REGISTRATION, true)
         val bufAllocator = channel.config().getRecvByteBufAllocator<MaxMessagesRecvByteBufAllocator>()
         bufAllocator.maxMessagesPerRead(1)
 
@@ -67,7 +66,7 @@ class DnsServerImpl private constructor(vertx: VertxInternal, options: DatagramS
         demand = Long.MAX_VALUE
     }
 
-    private fun initial() {
+    internal fun initial() {
         channel.pipeline().addLast(DatagramDnsQueryDecoder())
         channel.pipeline().addLast(DatagramDnsResponseEncoder())
         channel.pipeline().addLast("handler", VertxHandler.create { ctx -> Connection(context, ctx)} )
@@ -225,11 +224,5 @@ class DnsServerImpl private constructor(vertx: VertxInternal, options: DatagramS
 
     companion object {
         private val log = LoggerFactory.getLogger(DnsServerImpl::class.java)
-        fun create(vertx: VertxInternal, options: DatagramSocketOptions): DnsServerImpl {
-            val socket = DnsServerImpl(vertx, options)
-            // Make sure object is fully initiliased to avoid race with async registration
-            socket.initial()
-            return socket
-        }
     }
 }
