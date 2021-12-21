@@ -182,7 +182,7 @@ class NettyDnsVerticle : CoroutineVerticle() {
                 }
                 DomainUtil.matchBlock(questionName) -> {
                     val dest = response.recipient().address.toString()
-                    log.info("$questionName 被阻止: $dest")
+                    log.debug("$questionName 被阻止: $dest")
                     //val reply = blockMessage(message)
                     //serverSocket.send(Buffer.buffer(reply), request.sender().port(), request.sender().host())
                     val buf = Unpooled.wrappedBuffer(blockAddress.address)
