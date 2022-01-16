@@ -3,8 +3,7 @@ package cn.foperate.ros
 import ch.qos.logback.classic.LoggerContext
 import ch.qos.logback.classic.joran.JoranConfigurator
 import cn.foperate.ros.pac.DomainUtil
-import cn.foperate.ros.service.CloudflareService
-import cn.foperate.ros.service.QuadService
+import cn.foperate.ros.service.DnsOverHttpsService
 import cn.foperate.ros.verticle.NettyDnsVerticle
 import cn.foperate.ros.service.RestService
 import cn.foperate.ros.verticle.RestVerticle
@@ -118,8 +117,7 @@ object IPset {
 
         val mutiny = io.vertx.mutiny.core.Vertx(vertx)
         RestService.init(mutiny, config.getJsonObject("ros"))
-        CloudflareService.init(mutiny)
-        QuadService.init(mutiny)
+        DnsOverHttpsService.init(mutiny)
 
         vertx.deployVerticle(
             RestVerticle(), deploymentOptionsOf(

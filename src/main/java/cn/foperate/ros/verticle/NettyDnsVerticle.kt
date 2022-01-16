@@ -2,8 +2,7 @@ package cn.foperate.ros.verticle
 
 import cn.foperate.ros.netty.*
 import cn.foperate.ros.pac.DomainUtil
-import cn.foperate.ros.service.CloudflareService
-import cn.foperate.ros.service.QuadService
+import cn.foperate.ros.service.DnsOverHttpsService
 import cn.foperate.ros.service.RestService
 import io.netty.buffer.ByteBuf
 import io.netty.buffer.Unpooled
@@ -129,7 +128,7 @@ class NettyDnsVerticle : CoroutineVerticle() {
                     log.debug("收到一个Netflix请求")
                     log.debug(dnsQuestion.toString())
 
-                    QuadService.query(questionName, questionType)
+                    DnsOverHttpsService.queryQuad(questionName, questionType)
                         .subscribe().with { answers ->
                             if (answers.isEmpty) {
                                 val dest = response.recipient().address.toString()
@@ -194,7 +193,7 @@ class NettyDnsVerticle : CoroutineVerticle() {
                     log.debug("gfwlist hint")
                     log.debug(dnsQuestion.toString())
 
-                    CloudflareService.query(questionName)
+                    DnsOverHttpsService.queryCloudflare(questionName)
                         .subscribe().with { answers -> // 由于实现的特殊性，不会有异常分支
                             if (answers.isEmpty) {
                                 val dest = response.recipient().address.toString()
