@@ -1,13 +1,13 @@
 package cn.foperate.ros.netty
 
 import io.netty.handler.codec.dns.DnsQuestion
-import io.netty.handler.codec.dns.DnsRawRecord
+import io.netty.handler.codec.dns.DnsRecord
 import io.vertx.core.Future
 import io.vertx.core.Vertx
 import io.vertx.core.impl.VertxInternal
 
 interface DnsProxy {
-    fun proxy(question: DnsQuestion): Future<List<DnsRawRecord>>
+    fun proxy(question: DnsQuestion): Future<List<DnsRecord>>
     fun connect(): DnsProxy
     fun close(): Future<Void>
     companion object {

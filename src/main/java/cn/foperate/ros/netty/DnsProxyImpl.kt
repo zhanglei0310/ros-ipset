@@ -70,7 +70,7 @@ class DnsProxyImpl(private val vertx: VertxInternal, private val options: DnsPro
     }
 
     private inner class Query(dnsQuestion: DnsQuestion) {
-        var promise: Promise<List<DnsRawRecord>> = actualCtx.nettyEventLoop().newPromise()
+        var promise: Promise<List<DnsRecord>> = actualCtx.nettyEventLoop().newPromise()
         var timerID: Long = 0
         var msg: DatagramDnsQuery = DatagramDnsQuery(
             null,
@@ -93,32 +93,46 @@ class DnsProxyImpl(private val vertx: VertxInternal, private val options: DnsPro
         }
 
         fun handle(resp: DatagramDnsResponse) {
-            inProgressMap.remove(resp.id())
-            if (timerID >= 0) {
-                vertx.cancelTimer(timerID)
-            }
-            val code: DnsResponseCode = DnsResponseCode.valueOf(resp.code().intValue())
-            if (code==DnsResponseCode.NOERROR) {
-                val answers = mutableListOf<DnsRawRecord>()
-                for (idx in 0 until resp.count(DnsSection.ANSWER)) {
-                    val answer = resp.recordAt<DnsRawRecord>(DnsSection.ANSWER, idx)
-                    // FIXME 目前一律按照10分钟的寿命来处理请求，是否合理？
-                    val raw = DefaultDnsRawRecord(answer.name(), answer.type(), options.timeToLive, answer.content().retain())
-                    answers.add(raw)
+            try {
+                inProgressMap.remove(resp.id())
+                if (timerID >= 0) {
+                    vertx.cancelTimer(timerID)
                 }
-                /*for (idx in 0 until resp.count(DnsSection.AUTHORITY)) {
-                    val answer = resp.recordAt<DnsRawRecord>(DnsSection.AUTHORITY, idx)
-                    //val raw = DefaultDnsRawRecord(answer.name(), answer.type(), answer.timeToLive(), answer.)
-                    answers.add(answer.copy())
+                val code: DnsResponseCode = DnsResponseCode.valueOf(resp.code().intValue())
+                if (code==DnsResponseCode.NOERROR) {
+                    val answers = mutableListOf<DnsRecord>()
+                    for (idx in 0 until resp.count(DnsSection.ANSWER)) {
+                        when (val answer = resp.recordAt<DnsRecord>(DnsSection.ANSWER, idx)) {
+                            is DnsRawRecord -> {
+                                // FIXME 目前一律按照10分钟的寿命来处理请求，是否合理？
+                                val raw = DefaultDnsRawRecord(answer.name(), answer.type(), options.timeToLive, answer.content().retain())
+                                answers.add(raw)
+                            }
+                            is DnsPtrRecord -> {
+                                answers.add(answer)
+                            }
+                            else -> {
+                                log.debug("Receive a record: " + answer.javaClass.simpleName)
+                            }
+                        }
+                    }
+                    /*for (idx in 0 until resp.count(DnsSection.AUTHORITY)) {
+                        val answer = resp.recordAt<DnsRawRecord>(DnsSection.AUTHORITY, idx)
+                        //val raw = DefaultDnsRawRecord(answer.name(), answer.type(), answer.timeToLive(), answer.)
+                        answers.add(answer.copy())
+                    }
+                    for (idx in 0 until resp.count(DnsSection.ADDITIONAL)) {
+                        val answer = resp.recordAt<DnsRawRecord>(DnsSection.ADDITIONAL, idx)
+                        //val raw = DefaultDnsRawRecord(answer.name(), answer.type(), answer.timeToLive(), answer.)
+                        answers.add(answer.copy())
+                    }*/
+                    promise.setSuccess(answers)
+                } else {
+                    promise.setFailure(RuntimeException("服务器错误: $code"))
                 }
-                for (idx in 0 until resp.count(DnsSection.ADDITIONAL)) {
-                    val answer = resp.recordAt<DnsRawRecord>(DnsSection.ADDITIONAL, idx)
-                    //val raw = DefaultDnsRawRecord(answer.name(), answer.type(), answer.timeToLive(), answer.)
-                    answers.add(answer.copy())
-                }*/
-                promise.setSuccess(answers)
-            } else {
-                promise.setFailure(RuntimeException("服务器错误: $code"))
+            } catch (e: Exception) {
+                log.error(e.message, e)
+                promise.setFailure(e)
             }
         }
 
@@ -139,9 +153,9 @@ class DnsProxyImpl(private val vertx: VertxInternal, private val options: DnsPro
         }
     }
 
-    override fun proxy(question: DnsQuestion): Future<List<DnsRawRecord>> {
+    override fun proxy(question: DnsQuestion): Future<List<DnsRecord>> {
         val ctx = vertx.orCreateContext
-        val promise = ctx.promise<List<DnsRawRecord>>()
+        val promise = ctx.promise<List<DnsRecord>>()
         val el = actualCtx.nettyEventLoop()
         val query = Query(question)
         query.promise.addListener(promise)
