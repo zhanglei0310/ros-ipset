@@ -53,11 +53,7 @@ class NettyDnsVerticle : CoroutineVerticle() {
     }
 
     private fun addressToBuffer(address: String): ByteBuf {
-        val result = NetUtil.createByteArrayFromIpAddressString(address)/*ByteArray(4)
-        address.split(".")
-            .forEachIndexed { index, s ->
-                result[index] = s.toUByte().toByte()
-            }*/
+        val result = NetUtil.createByteArrayFromIpAddressString(address)
         return Unpooled.wrappedBuffer(result)
     }
 
@@ -245,69 +241,6 @@ class NettyDnsVerticle : CoroutineVerticle() {
                                 }
                             }
                         }
-
-                    /*val future: Future<List<DnsRawRecord>> = run {
-                        val promise = Promise.promise<List<DnsRawRecord>>()
-                        proxyClient.proxy(dnsQuestion).onSuccess {
-                            promise.tryComplete(it)
-                        }.onFailure {
-                            promise.tryFail(it)
-                        }
-                        promise.future()
-                    }
-                    future.onSuccess {
-                        log.debug("Success with ${it.size}")
-                        if (it.isNotEmpty()) {
-                            val aRecordIps = mutableListOf<String>()
-                            it.forEach { answer -> // 在Alpine上会遇到奇怪的现象会大分片失败，存疑。
-                                response.addRecord(DnsSection.ANSWER, answer.retain())
-                                if (answer.type()==DnsRecordType.A) {
-                                    val address = RecordDecoder.decode<String>(answer)
-                                    aRecordIps.add(address)
-                                } else {
-                                    log.debug(answer.type().name())
-                                    val address = answer.content()
-                                    address.forEachByte { b ->
-                                        log.debug(b.toString())
-                                        true
-                                    }
-                                }
-                            }
-                            dnsServer.send(response)
-                            if (aRecordIps.isNotEmpty()) {
-                                eb.request<Long>(
-                                    RestVerticle.EVENT_ADDRESS, jsonObjectOf(
-                                        "domain" to questionName,
-                                        "address" to aRecordIps
-                                    )
-                                ).onSuccess {
-                                    //log.debug("call success")
-                                }.onFailure { err ->
-                                    log.error(err.message)
-                                }
-                            }
-                        }
-                    }.onFailure { e ->
-                        log.error("$questionName 解析失败 ${e.message}")
-                        // 但是请求失败后，会从备用服务器解析结果
-                        if (dnsQuestion.type()== DnsRecordType.A) {
-                            val dnsProxy = vertx.createDnsClient(remotePort, remote)
-                            dnsProxy.resolveA(questionName).onSuccess {
-                                log.debug(it.toString())
-                                for (answer in it) {
-                                    val ip = answer.split(".").map { sec ->
-                                        sec.toUByte().toByte()
-                                    }.toByteArray()
-                                    response.addRecord(DnsSection.ANSWER,
-                                        DefaultDnsRawRecord(questionName, DnsRecordType.A, 600, Unpooled.wrappedBuffer(ip))
-                                    )
-                                }
-                                dnsServer.send(response)
-                            }.onFailure {
-                                log.error(it.message)
-                            }
-                        }
-                    }*/
                 }
                 else -> {
                     backupClient.proxy(dnsQuestion).onSuccess {
