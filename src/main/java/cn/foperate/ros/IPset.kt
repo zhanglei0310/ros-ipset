@@ -57,7 +57,7 @@ object IPset {
         setLogger()
 
         val vertx = Vertx.vertx(vertxOptionsOf(
-            preferNativeTransport = true
+            preferNativeTransport = false
         ))
 
         val config = ConfigRetriever.create(vertx)

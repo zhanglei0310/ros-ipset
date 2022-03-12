@@ -91,6 +91,8 @@ class NettyDnsVerticle : CoroutineVerticle() {
                 val question = it.recordAt<DnsQuestion>(DnsSection.QUESTION)
                 val response = DatagramDnsResponse(it.recipient(), it.sender(), it.id())
                 handleDnsQuery(question, response)
+            }.exceptionHandler {
+                log.error(it.message)
             }
             dnsServer.listen(localPort, "0.0.0.0").await()
             log.debug("UDP服务已经启动")
