@@ -26,7 +26,7 @@ object RestClient {
                 log.debug(id)
                 vertx.eventBus().request<JsonArray>(DnsOverHttpsVerticle.DNS_ADDRESS, jsonObjectOf(
                     "dns" to "quad",
-                    "domain" to "www.netflix.com",
+                    "domain" to "htlp.deadis.netflix.com.",
                     "type" to "A"
                 ))
             }

@@ -6,9 +6,12 @@ import io.vertx.core.Context
 import io.vertx.core.Promise
 import io.vertx.core.Vertx
 import io.vertx.core.eventbus.EventBus
+import io.vertx.core.http.HttpVersion
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
+import io.vertx.core.net.ProxyType
 import io.vertx.kotlin.core.json.jsonArrayOf
+import io.vertx.kotlin.core.net.proxyOptionsOf
 import io.vertx.kotlin.ext.web.client.webClientOptionsOf
 import io.vertx.mutiny.ext.web.client.WebClient
 import org.slf4j.LoggerFactory
@@ -23,6 +26,8 @@ class DnsOverHttpsVerticle: AbstractVerticle() {
     val mutinyVertx = io.vertx.mutiny.core.Vertx(vertx)
     bus = vertx.eventBus()
     client = WebClient.create(mutinyVertx, webClientOptionsOf(
+      protocolVersion = HttpVersion.HTTP_2,
+      useAlpn = true,
       ssl = true,
       maxPoolSize = 5,
       keepAlive = true,
