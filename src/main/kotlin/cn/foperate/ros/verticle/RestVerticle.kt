@@ -42,6 +42,7 @@ class RestVerticle: CoroutineVerticle() {
                 RestService.deleteAddressListItem(it)
             }
             .collect().asList()
+            .onFailure().recoverWithNull()
             .awaitSuspending()
         log.debug("旧数据清理完毕")
         DomainUtil.netflixIPs

@@ -13,7 +13,7 @@
         <kotlin.compiler.jvmTarget>11</kotlin.compiler.jvmTarget>
         <mutiny.version>2.16.0</mutiny.version>
         <vertx.version>4.2.5</vertx.version>
-        <main.class>cn.foperate.ros.IPset</main.class>
+        <main.class>cn.foperate.ros.Launcher</main.class>
         <graalvm.version>21.0.0.2</graalvm.version>
     </properties>
 

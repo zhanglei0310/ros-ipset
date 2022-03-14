@@ -23,7 +23,8 @@ object RestService {
             defaultPort = config.getInteger("port", 443),
             ssl = true,
             trustAll = true,
-            verifyHost = false
+            verifyHost = false,
+            connectTimeout = 5000
         ))
         rosListKey = config.getString("listName")
         rosUser = config.getString("user")

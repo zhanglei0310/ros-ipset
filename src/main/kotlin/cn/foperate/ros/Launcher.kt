@@ -87,7 +87,7 @@ object Launcher {
 
     vertx.deployVerticle(DnsOverHttpsVerticle())
       .subscribe().with ({
-        logger.info("DndOverHttpsVerticle init completed")
+        logger.info("DnsOverHttpsVerticle init completed")
       }) { e ->
         logger.error(e.message, e)
       }
@@ -99,7 +99,7 @@ object Launcher {
       logger.info("RosVerticle init completed")
     }) { e ->
       logger.error(e.message, e)
-      vertx.close()
+      //vertx.close()
     }
     vertx.deployVerticle(
       NettyDnsVerticle(), deploymentOptionsOf(

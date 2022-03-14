@@ -31,11 +31,11 @@ class DnsOverHttpsVerticle: AbstractVerticle() {
       maxPoolSize = 5,
       keepAlive = true,
       keepAliveTimeout = 60,
-      proxyOptions = proxyOptionsOf( // FIXME 正常环境是不需要的
+      /*proxyOptions = proxyOptionsOf( // FIXME 正常环境是不需要的
         host = "127.0.0.1",
         port = 7890,
         type = ProxyType.SOCKS5
-      )
+      )*/
     ))
   }
 
