@@ -8,9 +8,7 @@ import io.vertx.core.Vertx
 import io.vertx.core.eventbus.EventBus
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
-import io.vertx.core.net.ProxyType
 import io.vertx.kotlin.core.json.jsonArrayOf
-import io.vertx.kotlin.core.net.proxyOptionsOf
 import io.vertx.kotlin.ext.web.client.webClientOptionsOf
 import io.vertx.mutiny.ext.web.client.WebClient
 import org.slf4j.LoggerFactory
@@ -23,8 +21,6 @@ class DnsOverHttpsVerticle: AbstractVerticle() {
   override fun init(vertx: Vertx, context: Context) {
     super.init(vertx, context)
     val mutinyVertx = io.vertx.mutiny.core.Vertx(vertx)
-    //dns = DnsOverHttpsService(mutinyVertx)
-    //quadDns = QuadService(mutinyVertx)
     bus = vertx.eventBus()
     client = WebClient.create(mutinyVertx, webClientOptionsOf(
       ssl = true,
@@ -63,7 +59,7 @@ class DnsOverHttpsVerticle: AbstractVerticle() {
       .addQueryParam("name", domain)
       .addQueryParam("type", "A")
       .putHeader("Accept", "application/dns-json")
-      .timeout(3000L)
+      .timeout(10000L)
       .send()
       .onItem().transform {
         it.bodyAsJsonObject().getJsonArray("Answer", jsonArrayOf())
@@ -79,7 +75,7 @@ class DnsOverHttpsVerticle: AbstractVerticle() {
       .putHeader("Host", "dns.quad9.net:5053")
       .addQueryParam("name", domain)
       .addQueryParam("type", type)
-      .timeout(3000L)
+      .timeout(10000L)
       .send()
       .onItem().transform {
         // log.debug(it.bodyAsString())

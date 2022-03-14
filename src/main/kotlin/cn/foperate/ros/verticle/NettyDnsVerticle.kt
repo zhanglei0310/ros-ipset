@@ -136,7 +136,7 @@ class NettyDnsVerticle : CoroutineVerticle() {
                         .subscribe().with { answers ->
                             if (answers.isEmpty) {
                                 val dest = response.recipient().address.toString()
-                                log.error("$questionName 解析失败: $dest")
+                                log.error("$questionName 解析失败: $dest $questionType")
                             } else {
                                 val aRecordIps = jsonArrayOf()
                                 answers.forEach { answer -> // 在Alpine上会遇到奇怪的现象会大分片失败，存疑。
