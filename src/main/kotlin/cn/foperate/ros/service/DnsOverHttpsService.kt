@@ -8,14 +8,16 @@ import io.vertx.mutiny.core.Vertx
 import io.vertx.mutiny.ext.web.client.WebClient
 import org.slf4j.LoggerFactory
 
-object DnsOverHttpsService {
+class DnsOverHttpsService(vertx: Vertx) {
     private val log = LoggerFactory.getLogger(DnsOverHttpsService::class.java)
-    private lateinit var client: WebClient
+    private val client: WebClient
 
-    fun init(vertx: Vertx) {
+    init {
         client = WebClient.create(vertx, webClientOptionsOf(
             ssl = true,
             maxPoolSize = 5,
+            keepAlive = true,
+            keepAliveTimeout = 60
         ))
     }
 

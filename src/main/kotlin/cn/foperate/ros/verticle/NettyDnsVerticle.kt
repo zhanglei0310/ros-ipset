@@ -2,7 +2,6 @@ package cn.foperate.ros.verticle
 
 import cn.foperate.ros.netty.*
 import cn.foperate.ros.pac.DomainUtil
-import cn.foperate.ros.service.DnsOverHttpsService
 import cn.foperate.ros.service.RestService
 import io.netty.buffer.ByteBuf
 import io.netty.buffer.Unpooled
@@ -11,13 +10,14 @@ import io.netty.util.NetUtil
 import io.vertx.core.Context
 import io.vertx.core.Vertx
 import io.vertx.core.buffer.Buffer
-import io.vertx.core.eventbus.EventBus
 import io.vertx.core.impl.VertxInternal
+import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.core.json.jsonArrayOf
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.kotlin.coroutines.CoroutineVerticle
 import io.vertx.kotlin.coroutines.await
+import io.vertx.mutiny.core.eventbus.EventBus
 import org.slf4j.LoggerFactory
 import java.net.InetAddress
 
@@ -50,6 +50,7 @@ class NettyDnsVerticle : CoroutineVerticle() {
         val block = config.getString("blockAddress", "224.0.0.1")
         // 实际不会发生阻塞
         blockAddress = InetAddress.getByName(block)
+        eb = io.vertx.mutiny.core.Vertx(vertx).eventBus()
     }
 
     private fun addressToBuffer(address: String): ByteBuf {
@@ -69,7 +70,6 @@ class NettyDnsVerticle : CoroutineVerticle() {
 
     override suspend fun start() {
         try {
-            eb = vertx.eventBus()
             backupClient = vertx.createDnsProxy(dnsProxyOptionsOf(
                     host = fallback,
                     port = 53,
@@ -126,7 +126,13 @@ class NettyDnsVerticle : CoroutineVerticle() {
                     log.debug("收到一个Netflix请求")
                     log.debug(dnsQuestion.toString())
 
-                    DnsOverHttpsService.queryQuad(questionName, questionType)
+                    // DnsOverHttpsService.queryQuad(questionName, questionType)
+                    eb.request<JsonArray>(DnsOverHttpsVerticle.DNS_ADDRESS, jsonObjectOf(
+                        "dns" to "quad",
+                        "domain" to questionName,
+                        "type" to questionType
+                    ))
+                        .onItem().transform { it.body() }
                         .subscribe().with { answers ->
                             if (answers.isEmpty) {
                                 val dest = response.recipient().address.toString()
@@ -168,9 +174,9 @@ class NettyDnsVerticle : CoroutineVerticle() {
                                             "domain" to questionName,
                                             "address" to aRecordIps
                                         )
-                                    ).onSuccess {
+                                    ).subscribe().with({
                                         log.debug("call success")
-                                    }.onFailure { err ->
+                                    }) { err ->
                                         log.error(err.message)
                                     }
                                 }
@@ -191,7 +197,12 @@ class NettyDnsVerticle : CoroutineVerticle() {
                     log.debug("gfwlist hint")
                     log.debug(dnsQuestion.toString())
 
-                    DnsOverHttpsService.queryCloudflare(questionName)
+                    // DnsOverHttpsService.queryCloudflare(questionName)
+                    eb.request<JsonArray>(DnsOverHttpsVerticle.DNS_ADDRESS, jsonObjectOf(
+                        "dns" to "cloudflare",
+                        "domain" to questionName
+                    ))
+                        .onItem().transform { it.body() }
                         .subscribe().with { answers -> // 由于实现的特殊性，不会有异常分支
                             if (answers.isEmpty) {
                                 val dest = response.recipient().address.toString()
@@ -235,9 +246,9 @@ class NettyDnsVerticle : CoroutineVerticle() {
                                             "domain" to questionName,
                                             "address" to aRecordIps
                                         )
-                                    ).onSuccess {
+                                    ).subscribe().with({
                                         log.debug("call success")
-                                    }.onFailure { err ->
+                                    }) { err ->
                                         log.error(err.message)
                                     }
                                 }

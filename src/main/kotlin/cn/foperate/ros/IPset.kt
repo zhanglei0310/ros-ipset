@@ -1,15 +1,12 @@
 package cn.foperate.ros
 
-import ch.qos.logback.classic.LoggerContext
-import ch.qos.logback.classic.joran.JoranConfigurator
 import cn.foperate.ros.pac.DomainUtil
-import cn.foperate.ros.service.DnsOverHttpsService
-import cn.foperate.ros.verticle.NettyDnsVerticle
 import cn.foperate.ros.service.RestService
+import cn.foperate.ros.verticle.DnsOverHttpsVerticle
+import cn.foperate.ros.verticle.NettyDnsVerticle
 import cn.foperate.ros.verticle.RestVerticle
 import io.vertx.config.ConfigRetriever
 import io.vertx.core.Vertx
-import io.vertx.core.logging.SLF4JLogDelegateFactory
 import io.vertx.ext.web.client.WebClient
 import io.vertx.kotlin.core.deploymentOptionsOf
 import io.vertx.kotlin.core.json.jsonArrayOf
@@ -34,27 +31,8 @@ object IPset {
         }
     }
 
-    private fun setLogger() {
-        System.setProperty("vertx.logger-delegate-factory-class-name",
-            SLF4JLogDelegateFactory::class.java.name)
-
-        // if logback.xml in current work dir, use it
-        try {
-            val file = checkFile("logback.xml")
-            val lc = LoggerFactory.getILoggerFactory() as LoggerContext
-
-            val configurator = JoranConfigurator()
-            configurator.context = lc
-            lc.reset()
-            configurator.doConfigure(file)
-        } catch (e:Exception) {}
-
-    }
-
     @JvmStatic
     fun main(args:Array<String>): Unit = runBlocking {
-
-        setLogger()
 
         val vertx = Vertx.vertx(vertxOptionsOf(
             preferNativeTransport = false
@@ -117,8 +95,14 @@ object IPset {
 
         val mutiny = io.vertx.mutiny.core.Vertx(vertx)
         RestService.init(mutiny, config.getJsonObject("ros"))
-        DnsOverHttpsService.init(mutiny)
+        //DnsOverHttpsService.init(mutiny)
 
+        vertx.deployVerticle(DnsOverHttpsVerticle())
+            .onFailure { e ->
+                logger.error(e.message, e)
+            }.onSuccess {
+                logger.info("DndOverHttpsVerticle init completed")
+            }
         vertx.deployVerticle(
             RestVerticle(), deploymentOptionsOf(
                 config = config.getJsonObject("ros")
@@ -127,13 +111,17 @@ object IPset {
             logger.error(e.message, e)
             vertx.close()
         }.onSuccess {
-            logger.info("RosService init completed")
+            logger.info("RosVerticle init completed")
         }
         vertx.deployVerticle(
             NettyDnsVerticle(), deploymentOptionsOf(
                 config = config.getJsonObject("dns")
             )
-        )
+        ).onFailure { e ->
+            logger.error(e.message, e)
+        }.onSuccess {
+            logger.info("NettyDnsVerticle init completed")
+        }
 
         logger.info("server started")
     }

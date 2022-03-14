@@ -1,7 +1,9 @@
 package cn.foperate.ros.app
 
-import cn.foperate.ros.service.QuadService
+import cn.foperate.ros.verticle.DnsOverHttpsVerticle
+import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
+import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.mutiny.core.Vertx
 import org.slf4j.LoggerFactory
 
@@ -19,13 +21,30 @@ object RestClient {
                     .subscribe().with { json -> println(json.encodePrettily()) }
             }*/
 
-        QuadService.init(vertx)
-        QuadService.query("www.netflix.com", "A")
+        vertx.deployVerticle(DnsOverHttpsVerticle())
+            .onItem().transformToUni { id ->
+                log.debug(id)
+                vertx.eventBus().request<JsonArray>(DnsOverHttpsVerticle.DNS_ADDRESS, jsonObjectOf(
+                    "dns" to "quad",
+                    "domain" to "www.netflix.com",
+                    "type" to "A"
+                ))
+            }
+            .onItem().transform { it.body() }
             .subscribe().with { result ->
                 result.forEach {
                     it as JsonObject
                     log.debug(it.encodePrettily())
                 }
             }
+
+        /*QuadService.init(vertx)
+        QuadService.query("www.netflix.com", "A")
+            .subscribe().with { result ->
+                result.forEach {
+                    it as JsonObject
+                    log.debug(it.encodePrettily())
+                }
+            }*/
     }
 }

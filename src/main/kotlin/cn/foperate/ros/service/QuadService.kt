@@ -8,22 +8,22 @@ import io.vertx.mutiny.core.Vertx
 import io.vertx.mutiny.ext.web.client.WebClient
 import org.slf4j.LoggerFactory
 
-object QuadService {
+class QuadService(vertx: Vertx) {
     private val log = LoggerFactory.getLogger(DnsOverHttpsService::class.java)
-    private lateinit var client: WebClient
+    private val client: WebClient
 
-    fun init(vertx: Vertx) {
+    init {
         client = WebClient.create(vertx, webClientOptionsOf(
             ssl = true,
-            defaultHost = "9.9.9.9",
-            defaultPort = 5053,
             maxPoolSize = 5,
+            keepAlive = true,
+            keepAliveTimeout = 60
         ))
     }
 
     // https://dns.quad9.net:5053/dns-query
     fun query(domain: String, type: String): Uni<JsonArray> =
-        client.get("/dns-query")
+        client.get(5053, "9.9.9.9", "/dns-query")
             .putHeader("Host", "dns.quad9.net:5053")
             .addQueryParam("name", domain)
             .addQueryParam("type", type)
