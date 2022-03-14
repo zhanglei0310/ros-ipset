@@ -20,7 +20,7 @@ object Launcher {
   private val logger = LoggerFactory.getLogger(Launcher::class.java)
 
   @JvmStatic
-  fun main(args: Array<String>) = runBlocking {
+  fun main(args: Array<String>): Unit = runBlocking {
 
     val vertx = Vertx.vertx(
       vertxOptionsOf(
@@ -72,12 +72,15 @@ object Launcher {
           .onItem().transformToUni { ip ->
             val client = WebClient.create(vertx)
             val port = if (url.port==-1) 443 else url.port
-            client.get(port, ip, it).send()
+            client.get(port, ip, it)
+              .virtualHost("cdn.jsdelivr.net")
+              .ssl(true)
+              .send()
           }
           .subscribe().with({ res ->
             val buffer = res.bodyAsBuffer()
-            DomainUtil.loadNetflixList(buffer.delegate)
-            logger.debug("Netflix地址加载成功")
+            DomainUtil.loadNetflixList(buffer)
+            logger.info("Netflix地址加载成功")
           }) { error ->
             logger.error(error.message, error)
           }

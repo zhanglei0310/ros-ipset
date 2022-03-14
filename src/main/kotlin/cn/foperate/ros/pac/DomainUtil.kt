@@ -3,7 +3,7 @@ package cn.foperate.ros.pac
 import io.netty.handler.codec.dns.DnsQuestion
 import io.netty.handler.codec.dns.DnsRecordType
 import io.smallrye.mutiny.coroutines.awaitSuspending
-import io.vertx.core.buffer.Buffer
+import io.vertx.mutiny.core.buffer.Buffer
 import io.vertx.mutiny.core.file.FileSystem
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -19,12 +19,12 @@ object DomainUtil {
     private val netflixList = HashSet<String>()
     val netflixIPs = HashSet<String>()
 
-    fun loadBlackList(file: File) {
+    /*fun loadBlackList(file: File) {
         val reader = file.bufferedReader(Charset.defaultCharset())
         val records = reader.lines().filter { it.isNotBlank() }.toList()
         blackList.addAll(records)
         log.info("${records.size} records of black list loaded")
-    }
+    }*/
 
     suspend fun loadBlackList(fs: FileSystem, name: String) {
         val file = fs.readFile(name).awaitSuspending()
@@ -42,12 +42,12 @@ object DomainUtil {
         log.info("${records.size} records of netflix IPs loaded")
     }
 
-    fun loadNetflixList(file: File) {
+    /*fun loadNetflixList(file: File) {
         val reader = file.bufferedReader(Charset.defaultCharset())
         val records = reader.readLines()
         netflixList.addAll(records)
         log.info("${records.size} records of netflix list loaded")
-    }
+    }*/
 
     suspend fun loadNetflixList(fs: FileSystem, name: String) {
         val file = fs.readFile(name).awaitSuspending()
@@ -58,7 +58,7 @@ object DomainUtil {
         log.info("${records.size} records of netflix list loaded")
     }
 
-    fun loadWhiteList(file: File) {
+    /*fun loadWhiteList(file: File) {
         val reader = file.bufferedReader(Charset.defaultCharset())
         val records = reader.lines()
             .filter { it.isNotBlank() }
@@ -66,7 +66,7 @@ object DomainUtil {
             .toList()
         whiteList.addAll(records)
         log.info("${records.size} records of white list loaded")
-    }
+    }*/
 
     suspend fun loadWhiteList(fs: FileSystem, name: String) {
         val file = fs.readFile(name).awaitSuspending()
@@ -78,14 +78,14 @@ object DomainUtil {
         log.info("${records.size} records of white list loaded")
     }
 
-    fun loadAdblockList(file:File) {
+    /*fun loadAdblockList(file:File) {
         val reader = file.bufferedReader(Charset.defaultCharset())
         val records = reader.lines()
             .filter { it.isNotBlank() }
             .toList()
         adblockList.addAll(records)
         log.info("${records.size} records of adblock list loaded")
-    }
+    }*/
 
     suspend fun loadAdblockList(fs: FileSystem, name: String) {
         val file = fs.readFile(name).awaitSuspending()

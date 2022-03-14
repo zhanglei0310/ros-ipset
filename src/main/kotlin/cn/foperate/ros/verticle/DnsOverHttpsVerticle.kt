@@ -9,9 +9,7 @@ import io.vertx.core.eventbus.EventBus
 import io.vertx.core.http.HttpVersion
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
-import io.vertx.core.net.ProxyType
 import io.vertx.kotlin.core.json.jsonArrayOf
-import io.vertx.kotlin.core.net.proxyOptionsOf
 import io.vertx.kotlin.ext.web.client.webClientOptionsOf
 import io.vertx.mutiny.ext.web.client.WebClient
 import org.slf4j.LoggerFactory
@@ -60,7 +58,7 @@ class DnsOverHttpsVerticle: AbstractVerticle() {
   // https://cloudflare-dns.com/dns-query
   private fun queryCloudflare(domain: String): Uni<JsonArray> =
     client.get(443, "1.1.1.1", "/dns-query")
-      .putHeader("Host", "cloudflare-dns.com:443")
+      .virtualHost("cloudflare-dns.com")
       .addQueryParam("name", domain)
       .addQueryParam("type", "A")
       .putHeader("Accept", "application/dns-json")
@@ -77,7 +75,7 @@ class DnsOverHttpsVerticle: AbstractVerticle() {
   // https://dns.quad9.net:5053/dns-query
   private fun queryQuad(domain: String, type: String): Uni<JsonArray> =
     client.get(5053, "9.9.9.9", "/dns-query")
-      .putHeader("Host", "dns.quad9.net:5053")
+      .virtualHost("dns.quad9.net")
       .addQueryParam("name", domain)
       .addQueryParam("type", type)
       .timeout(10000L)

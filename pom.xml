@@ -11,7 +11,7 @@
     <properties>
         <kotlin.version>1.6.10</kotlin.version>
         <kotlin.compiler.jvmTarget>11</kotlin.compiler.jvmTarget>
-        <mutiny.version>2.16.0</mutiny.version>
+        <mutiny.version>2.18.1</mutiny.version>
         <vertx.version>4.2.5</vertx.version>
         <main.class>cn.foperate.ros.Launcher</main.class>
         <graalvm.version>21.0.0.2</graalvm.version>
@@ -103,7 +103,7 @@
         <dependency>
             <groupId>io.smallrye.reactive</groupId>
             <artifactId>mutiny-kotlin</artifactId>
-            <version>1.2.0</version>
+            <version>1.3.1</version>
         </dependency>
 
         <dependency>
@@ -188,7 +188,7 @@
             <plugin>
                 <groupId>com.google.cloud.tools</groupId>
                 <artifactId>jib-maven-plugin</artifactId>
-                <version>3.1.4</version>
+                <version>3.2.0</version>
                 <configuration>
                     <from>
                         <image>adoptopenjdk/openjdk11-openj9:alpine-jre</image>
