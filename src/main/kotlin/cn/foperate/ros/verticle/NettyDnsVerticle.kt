@@ -11,7 +11,6 @@ import io.vertx.core.Context
 import io.vertx.core.Vertx
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.impl.VertxInternal
-import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.core.json.jsonArrayOf
 import io.vertx.kotlin.core.json.jsonObjectOf
@@ -127,21 +126,23 @@ class NettyDnsVerticle : CoroutineVerticle() {
                     log.debug(dnsQuestion.toString())
 
                     // DnsOverHttpsService.queryQuad(questionName, questionType)
-                    eb.request<JsonArray>(DnsOverHttpsVerticle.DNS_ADDRESS, jsonObjectOf(
+                    eb.request<JsonObject>(DnsOverHttpsVerticle.DNS_ADDRESS, jsonObjectOf(
                         "dns" to "quad",
                         "domain" to questionName,
                         "type" to questionType
                     ))
                         .onItem().transform { it.body() }
-                        .subscribe().with ({ answers ->
+                        .subscribe().with ({ reply ->
+                            response.setCode(DnsResponseCode.valueOf(reply.getInteger("Status")))
+                            val answers = reply.getJsonArray("Answer", jsonArrayOf())
                             if (answers.isEmpty) {
                                 val dest = response.recipient().address.toString()
-                                log.error("$questionName 解析失败: $dest $questionType")
+                                log.info("$questionName 没有对应的记录: $dest -> $questionName ($questionType)")
+                                dnsServer.send(response)
                             } else {
                                 val aRecordIps = jsonArrayOf()
                                 answers.forEach { answer -> // 在Alpine上会遇到奇怪的现象会大分片失败，存疑。
                                     answer as JsonObject
-
                                     when (val type = answer.getInteger("type")){
                                         1 -> {
                                             val ip = answer.getString("data")
@@ -182,7 +183,7 @@ class NettyDnsVerticle : CoroutineVerticle() {
                                 }
                             }
                         }) {
-                            log.error(it.message)
+                            log.error("Netflix查询错误 ${it.message}：$questionName $questionType")
                         }
                 }
                 DomainUtil.matchBlock(questionName) -> {
@@ -200,15 +201,13 @@ class NettyDnsVerticle : CoroutineVerticle() {
                     log.debug(dnsQuestion.toString())
 
                     // DnsOverHttpsService.queryCloudflare(questionName)
-                    eb.request<JsonArray>(DnsOverHttpsVerticle.DNS_ADDRESS, jsonObjectOf(
+                    eb.request<JsonObject>(DnsOverHttpsVerticle.DNS_ADDRESS, jsonObjectOf(
                         "dns" to "cloudflare",
                         "domain" to questionName
                     ))
                         .onItem().transform { it.body() }
-                        .subscribe().with ({ answers -> // 由于实现的特殊性，不会有异常分支
-                            if (answers.isEmpty) {
-                                val dest = response.recipient().address.toString()
-                                log.error("$questionName 解析失败: $dest")
+                        .subscribe().with ({ reply -> // 由于实现的特殊性，不会有异常分支
+                            if (reply.getInteger("Status")!=0) {
                                 // 但是请求失败后，会从备用服务器解析结果
                                 backupClient.proxy(dnsQuestion).onSuccess {
                                     log.debug(it.toString())
@@ -216,8 +215,19 @@ class NettyDnsVerticle : CoroutineVerticle() {
                                         response.addRecord(DnsSection.ANSWER, answer)
                                     }
                                     dnsServer.send(response)
-                                }.onFailure {  }
+                                }.onFailure {
+                                    val dest = response.recipient().address.toString()
+                                    log.error("GFW查询错误： $dest -> $questionName [${it.message}]")
+                                    if (it is DnsError) {
+                                        response.setCode(DnsResponseCode.valueOf(it.code.code()))
+                                        for (answer in it.record) {
+                                            response.addRecord(DnsSection.ANSWER, answer)
+                                        }
+                                        dnsServer.send(response)
+                                    }
+                                }
                             } else {
+                                val answers = reply.getJsonArray("Answer", jsonArrayOf())
                                 val aRecordIps = jsonArrayOf()
                                 answers.forEach { answer -> // 在Alpine上会遇到奇怪的现象会大分片失败，存疑。
                                     answer as JsonObject
@@ -256,21 +266,30 @@ class NettyDnsVerticle : CoroutineVerticle() {
                                 }
                             }
                         }) {
-                            log.error(it.message)
+                            log.error("GFW查询错误：${it.message}")
                         }
                 }
                 else -> {
                     backupClient.proxy(dnsQuestion).onSuccess {
-                        log.debug(it.toString())
                         for (answer in it) {
                             response.addRecord(DnsSection.ANSWER, answer)
                         }
                         dnsServer.send(response)
-                    }.onFailure {  }
+                    }.onFailure {
+                        if (it is DnsError) {
+                            response.setCode(DnsResponseCode.valueOf(it.code.code()))
+                            for (answer in it.record) {
+                                response.addRecord(DnsSection.ANSWER, answer)
+                            }
+                            dnsServer.send(response)
+                        }
+                    } // 普通查询错误直接忽略
                 }
             }
         } catch (e: Exception) {
             log.error("异常了：$e", e)
+
+            //response.addRecord(DnsSection.ANSWER, answer)
         }
     }
 

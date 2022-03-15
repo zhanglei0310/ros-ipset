@@ -3,6 +3,7 @@ package cn.foperate.ros.app
 import cn.foperate.ros.verticle.DnsOverHttpsVerticle
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
+import io.vertx.kotlin.core.json.jsonArrayOf
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.mutiny.core.Vertx
 import org.slf4j.LoggerFactory
@@ -24,15 +25,15 @@ object RestClient {
         vertx.deployVerticle(DnsOverHttpsVerticle())
             .onItem().transformToUni { id ->
                 log.debug(id)
-                vertx.eventBus().request<JsonArray>(DnsOverHttpsVerticle.DNS_ADDRESS, jsonObjectOf(
-                    "dns" to "quad",
+                vertx.eventBus().request<JsonObject>(DnsOverHttpsVerticle.DNS_ADDRESS, jsonObjectOf(
+                    "dns" to "qad",
                     "domain" to "www.netflix.com.",
                     "type" to "A"
                 ))
             }
             .onItem().transform { it.body() }
-            .subscribe().with ({ result ->
-                result.forEach {
+            .subscribe().with ({ result: JsonObject ->
+                result.getJsonArray("Answer", jsonArrayOf()).forEach {
                     it as JsonObject
                     log.debug(it.encodePrettily())
                 }

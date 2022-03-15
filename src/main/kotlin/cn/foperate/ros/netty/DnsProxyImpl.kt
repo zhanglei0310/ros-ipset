@@ -98,37 +98,39 @@ class DnsProxyImpl(private val vertx: VertxInternal, private val options: DnsPro
                 if (timerID >= 0) {
                     vertx.cancelTimer(timerID)
                 }
-                val code: DnsResponseCode = DnsResponseCode.valueOf(resp.code().intValue())
-                if (code==DnsResponseCode.NOERROR) {
-                    val answers = mutableListOf<DnsRecord>()
-                    for (idx in 0 until resp.count(DnsSection.ANSWER)) {
-                        when (val answer = resp.recordAt<DnsRecord>(DnsSection.ANSWER, idx)) {
-                            is DnsRawRecord -> {
-                                // FIXME 目前一律按照10分钟的寿命来处理请求，是否合理？
-                                val raw = DefaultDnsRawRecord(answer.name(), answer.type(), options.timeToLive, answer.content().retain())
-                                answers.add(raw)
-                            }
-                            is DnsPtrRecord -> {
-                                answers.add(answer)
-                            }
-                            else -> {
-                                log.debug("Receive a record: " + answer.javaClass.simpleName)
-                            }
+
+                val answers = mutableListOf<DnsRecord>()
+                for (idx in 0 until resp.count(DnsSection.ANSWER)) {
+                    when (val answer = resp.recordAt<DnsRecord>(DnsSection.ANSWER, idx)) {
+                        is DnsRawRecord -> {
+                            // FIXME 目前一律按照10分钟的寿命来处理请求，是否合理？
+                            val raw = DefaultDnsRawRecord(answer.name(), answer.type(), options.timeToLive, answer.content().retain())
+                            answers.add(raw)
+                        }
+                        is DnsPtrRecord -> {
+                            answers.add(answer)
+                        }
+                        else -> {
+                            log.debug("Receive a record: " + answer.javaClass.simpleName)
                         }
                     }
-                    /*for (idx in 0 until resp.count(DnsSection.AUTHORITY)) {
-                        val answer = resp.recordAt<DnsRawRecord>(DnsSection.AUTHORITY, idx)
-                        //val raw = DefaultDnsRawRecord(answer.name(), answer.type(), answer.timeToLive(), answer.)
-                        answers.add(answer.copy())
-                    }
-                    for (idx in 0 until resp.count(DnsSection.ADDITIONAL)) {
-                        val answer = resp.recordAt<DnsRawRecord>(DnsSection.ADDITIONAL, idx)
-                        //val raw = DefaultDnsRawRecord(answer.name(), answer.type(), answer.timeToLive(), answer.)
-                        answers.add(answer.copy())
-                    }*/
+                }
+                /*for (idx in 0 until resp.count(DnsSection.AUTHORITY)) {
+                    val answer = resp.recordAt<DnsRawRecord>(DnsSection.AUTHORITY, idx)
+                    //val raw = DefaultDnsRawRecord(answer.name(), answer.type(), answer.timeToLive(), answer.)
+                    answers.add(answer.copy())
+                }
+                for (idx in 0 until resp.count(DnsSection.ADDITIONAL)) {
+                    val answer = resp.recordAt<DnsRawRecord>(DnsSection.ADDITIONAL, idx)
+                    //val raw = DefaultDnsRawRecord(answer.name(), answer.type(), answer.timeToLive(), answer.)
+                    answers.add(answer.copy())
+                }*/
+
+                val code = resp.code().intValue()
+                if (code==0) { // DnsResponseCode.NOERROR
                     promise.setSuccess(answers)
                 } else {
-                    promise.setFailure(RuntimeException("服务器错误: $code"))
+                    promise.setFailure(DnsError(DnsResponseCode.valueOf(code), answers))
                 }
             } catch (e: Exception) {
                 log.error(e.message, e)

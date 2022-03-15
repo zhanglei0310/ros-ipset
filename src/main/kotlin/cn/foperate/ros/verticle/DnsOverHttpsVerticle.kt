@@ -9,6 +9,7 @@ import io.vertx.core.http.HttpVersion
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.core.json.jsonArrayOf
+import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.kotlin.ext.web.client.webClientOptionsOf
 import io.vertx.mutiny.core.eventbus.EventBus
 import io.vertx.mutiny.ext.web.client.WebClient
@@ -59,13 +60,16 @@ class DnsOverHttpsVerticle: AbstractVerticle() {
       }
       answer.subscribe().with ({
         msg.reply(it)
-      }) { log.error(it.message) }
+      }) {
+        log.error(it.message)
+        msg.fail(500, it.message)
+      }
     }
     startPromise.complete()
   }
 
   // https://cloudflare-dns.com/dns-query
-  private fun queryCloudflare(domain: String): Uni<JsonArray> =
+  private fun queryCloudflare(domain: String): Uni<JsonObject> =
     cloudflareDns.get(443, "1.1.1.1", "/dns-query")
       .virtualHost("cloudflare-dns.com")
       .addQueryParam("name", domain)
@@ -74,15 +78,15 @@ class DnsOverHttpsVerticle: AbstractVerticle() {
       .timeout(10000L)
       .send()
       .onItem().transform {
-        it.bodyAsJsonObject().getJsonArray("Answer", jsonArrayOf())
+        it.bodyAsJsonObject()
       }
       .onFailure().recoverWithItem{ error ->
         log.error(error.message)
-        jsonArrayOf()
+        jsonObjectOf("Status" to 0)
       }
 
   // https://dns.quad9.net:5053/dns-query
-  private fun queryQuad(domain: String, type: String): Uni<JsonArray> =
+  private fun queryQuad(domain: String, type: String): Uni<JsonObject> =
     quadDns.get(5053, "9.9.9.9", "/dns-query")
       .virtualHost("dns.quad9.net")
       .addQueryParam("name", domain)
@@ -92,17 +96,8 @@ class DnsOverHttpsVerticle: AbstractVerticle() {
       .onFailure().retry().atMost(1L)
       .onItem().transform {
         it.bodyAsJsonObject()
-      }
-      .onItem().transform {
-        val answer = it.getJsonArray("Answer", jsonArrayOf())
-        if (answer.isEmpty) {
-          log.info(answer.encode())
-        }
-        answer
-      }
-      .onFailure().recoverWithItem{ error ->
-        log.error(error.message)
-        jsonArrayOf()
+        //if (resp.getInteger("Status")!=0) {}
+        //resp.getJsonArray("Answer", jsonArrayOf())
       }
 
   companion object {
