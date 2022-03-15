@@ -95,21 +95,14 @@ object Launcher {
       }) { e ->
         logger.error(e.message, e)
       }
-    vertx.deployVerticle(
-      RestVerticle(), deploymentOptionsOf(
+    vertx.deployVerticle(RestVerticle(), deploymentOptionsOf(
         config = config.getJsonObject("ros")
-      )
-    ).subscribe().with({
+    )).onItem().transformToUni { _ ->
       logger.info("RosVerticle init completed")
-    }) { e ->
-      logger.error(e.message, e)
-      //vertx.close()
-    }
-    vertx.deployVerticle(
-      NettyDnsVerticle(), deploymentOptionsOf(
-        config = config.getJsonObject("dns")
-      )
-    ).subscribe().with({
+      vertx.deployVerticle(NettyDnsVerticle(), deploymentOptionsOf(
+          config = config.getJsonObject("dns")
+      ))
+    }.subscribe().with({
       logger.info("NettyDnsVerticle init completed")
     }){ e ->
       logger.error(e.message, e)

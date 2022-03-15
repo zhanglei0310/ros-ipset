@@ -82,9 +82,16 @@ class DnsOverHttpsVerticle: AbstractVerticle() {
       .addQueryParam("type", type)
       .timeout(10000L)
       .send()
+      .onFailure().retry().atMost(1L)
       .onItem().transform {
-        // log.debug(it.bodyAsString())
-        it.bodyAsJsonObject().getJsonArray("Answer", jsonArrayOf())
+        it.bodyAsJsonObject()
+      }
+      .onItem().transform {
+        val answer = it.getJsonArray("Answer", jsonArrayOf())
+        if (answer.isEmpty) {
+          log.info(answer.encode())
+        }
+        answer
       }
       .onFailure().recoverWithItem{ error ->
         log.error(error.message)
