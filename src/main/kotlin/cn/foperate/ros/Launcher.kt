@@ -5,6 +5,7 @@ import cn.foperate.ros.service.RestService
 import cn.foperate.ros.verticle.DnsOverHttpsVerticle
 import cn.foperate.ros.verticle.NettyDnsVerticle
 import cn.foperate.ros.verticle.RestVerticle
+import io.smallrye.mutiny.infrastructure.Infrastructure
 import io.vertx.config.ConfigRetriever
 import io.vertx.kotlin.core.deploymentOptionsOf
 import io.vertx.kotlin.core.json.jsonArrayOf
@@ -112,6 +113,9 @@ object Launcher {
       logger.info("NettyDnsVerticle init completed")
     }){ e ->
       logger.error(e.message, e)
+    }
+    Infrastructure.setDroppedExceptionHandler { err ->
+      logger.error("发现Mutiny未处理的异常：", err)
     }
 
     logger.info("server started")

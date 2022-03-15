@@ -133,7 +133,7 @@ class NettyDnsVerticle : CoroutineVerticle() {
                         "type" to questionType
                     ))
                         .onItem().transform { it.body() }
-                        .subscribe().with { answers ->
+                        .subscribe().with ({ answers ->
                             if (answers.isEmpty) {
                                 val dest = response.recipient().address.toString()
                                 log.error("$questionName 解析失败: $dest $questionType")
@@ -181,6 +181,8 @@ class NettyDnsVerticle : CoroutineVerticle() {
                                     }
                                 }
                             }
+                        }) {
+                            log.error(it.message)
                         }
                 }
                 DomainUtil.matchBlock(questionName) -> {
@@ -203,7 +205,7 @@ class NettyDnsVerticle : CoroutineVerticle() {
                         "domain" to questionName
                     ))
                         .onItem().transform { it.body() }
-                        .subscribe().with { answers -> // 由于实现的特殊性，不会有异常分支
+                        .subscribe().with ({ answers -> // 由于实现的特殊性，不会有异常分支
                             if (answers.isEmpty) {
                                 val dest = response.recipient().address.toString()
                                 log.error("$questionName 解析失败: $dest")
@@ -253,6 +255,8 @@ class NettyDnsVerticle : CoroutineVerticle() {
                                     }
                                 }
                             }
+                        }) {
+                            log.error(it.message)
                         }
                 }
                 else -> {

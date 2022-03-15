@@ -1,5 +1,6 @@
 package cn.foperate.ros.service
 
+import io.smallrye.mutiny.Multi
 import io.smallrye.mutiny.Uni
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
@@ -31,22 +32,22 @@ object RestService {
         rosPwd = config.getString("password")
     }
 
-    fun queryAddressListIDs(list: String): Uni<List<String>> {
+    fun queryAddressListIDs(list: String): Multi<String> {
         return client.get("$base/ip/firewall/address-list")
             .basicAuthentication(rosUser, rosPwd)
             .addQueryParam("list", list)
             .addQueryParam(".proplist", ".id")
             .send()
-            .onItem().transform {
-                it.bodyAsJsonArray()
-                    .map { id ->
+            .onItem().transformToMulti {
+                Multi.createFrom().iterable(it.bodyAsJsonArray())
+                    .onItem().transform { id ->
                         id as JsonObject
                         id.getString(".id")
                     }
             }
     }
 
-    fun queryAddressList(list: String): Uni<JsonArray> {
+    private fun queryAddressList(list: String): Uni<JsonArray> {
         return client.get("$base/ip/firewall/address-list")
             .basicAuthentication(rosUser, rosPwd)
             .addQueryParam("list", list)

@@ -5,12 +5,12 @@ import io.vertx.core.AbstractVerticle
 import io.vertx.core.Context
 import io.vertx.core.Promise
 import io.vertx.core.Vertx
-import io.vertx.core.eventbus.EventBus
 import io.vertx.core.http.HttpVersion
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.core.json.jsonArrayOf
 import io.vertx.kotlin.ext.web.client.webClientOptionsOf
+import io.vertx.mutiny.core.eventbus.EventBus
 import io.vertx.mutiny.ext.web.client.WebClient
 import org.slf4j.LoggerFactory
 
@@ -22,7 +22,7 @@ class DnsOverHttpsVerticle: AbstractVerticle() {
   override fun init(vertx: Vertx, context: Context) {
     super.init(vertx, context)
     val mutinyVertx = io.vertx.mutiny.core.Vertx(vertx)
-    bus = vertx.eventBus()
+    bus = mutinyVertx.eventBus()
     client = WebClient.create(mutinyVertx, webClientOptionsOf(
       protocolVersion = HttpVersion.HTTP_2,
       useAlpn = true,
@@ -50,7 +50,9 @@ class DnsOverHttpsVerticle: AbstractVerticle() {
       } else {
         queryCloudflare( query.getString("domain") )
       }
-      answer.subscribe().with { msg.reply(it) }
+      answer.subscribe().with ({
+        msg.reply(it)
+      }) { log.error(it.message) }
     }
     startPromise.complete()
   }

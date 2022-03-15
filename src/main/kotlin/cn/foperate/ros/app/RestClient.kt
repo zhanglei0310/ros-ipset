@@ -31,11 +31,13 @@ object RestClient {
                 ))
             }
             .onItem().transform { it.body() }
-            .subscribe().with { result ->
+            .subscribe().with ({ result ->
                 result.forEach {
                     it as JsonObject
                     log.debug(it.encodePrettily())
                 }
+            }) {
+                log.error(it.message)
             }
 
         /*QuadService.init(vertx)

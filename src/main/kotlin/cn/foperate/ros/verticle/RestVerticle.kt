@@ -5,6 +5,7 @@ import cn.foperate.ros.service.RestService
 import io.smallrye.mutiny.Multi
 import io.smallrye.mutiny.coroutines.awaitSuspending
 import io.vertx.core.json.JsonObject
+import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.kotlin.coroutines.CoroutineVerticle
 import org.slf4j.LoggerFactory
 
@@ -21,15 +22,16 @@ class RestVerticle: CoroutineVerticle() {
             val domain = jsonObject.getString("domain")
             val address = jsonObject.getJsonArray("address")
             Multi.createFrom().items(address.stream())
-                .onItem().call { ip ->
+                .onItem().transformToUniAndMerge { ip ->
                     ip as String
                     RestService.addOrUpdateProxyAddress(ip, domain)
-                        .onFailure().recoverWithNull()
+                }
+                .onFailure().recoverWithItem { e ->
+                    log.error(e.message)
+                    jsonObjectOf()
                 }
                 .collect().last()
-                .subscribe().with ({
-                    message.reply(System.currentTimeMillis())
-                }) {
+                .subscribe().with {
                     message.reply(System.currentTimeMillis())
                 }
         }
@@ -37,18 +39,22 @@ class RestVerticle: CoroutineVerticle() {
 
     private suspend fun flushNetflix() {
         RestService.queryAddressListIDs("NETFLIX")
-            .onItem().transformToMulti { Multi.createFrom().iterable(it) }
-            .onItem().transform {
+            .onItem().transformToUniAndMerge {
                 RestService.deleteAddressListItem(it)
             }
-            .collect().asList()
-            .onFailure().recoverWithNull()
+            .onFailure().recoverWithItem { e ->
+                log.error(e.message)
+                e.message
+            }
+            .collect().last()
             .awaitSuspending()
         log.debug("旧数据清理完毕")
         DomainUtil.netflixIPs
             .forEach { ip ->
                 RestService.addStaticAddress(ip, "NETFLIX", "NETFLIX")
-                    .subscribe().with({}){}
+                    .subscribe().with({}){
+                        log.error(it.message)
+                    }
             }
     }
 

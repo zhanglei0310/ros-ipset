@@ -191,7 +191,7 @@
                 <version>3.2.0</version>
                 <configuration>
                     <from>
-                        <image>adoptopenjdk/openjdk11-openj9:alpine-jre</image>
+                        <image>docker://adoptopenjdk/openjdk11-openj9:alpine-jre</image>
                     </from>
                     <to>
                         <image>hub.locating.cn/my/jrodns</image>
