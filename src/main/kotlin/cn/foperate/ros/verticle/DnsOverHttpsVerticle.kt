@@ -17,24 +17,31 @@ import org.slf4j.LoggerFactory
 class DnsOverHttpsVerticle: AbstractVerticle() {
 
   private lateinit var bus: EventBus
-  private lateinit var client: WebClient
+  private lateinit var cloudflareDns: WebClient
+  private lateinit var quadDns: WebClient
 
   override fun init(vertx: Vertx, context: Context) {
     super.init(vertx, context)
     val mutinyVertx = io.vertx.mutiny.core.Vertx(vertx)
     bus = mutinyVertx.eventBus()
-    client = WebClient.create(mutinyVertx, webClientOptionsOf(
-      protocolVersion = HttpVersion.HTTP_2,
+    cloudflareDns = WebClient.create(mutinyVertx, webClientOptionsOf(
+      protocolVersion = HttpVersion.HTTP_2, // 应该没有KEEP_ALIVE功能
+      http2KeepAliveTimeout = 60,
+      http2MaxPoolSize = 1,
       useAlpn = true,
       ssl = true,
-      maxPoolSize = 5,
-      keepAlive = true,
-      keepAliveTimeout = 60,
       /*proxyOptions = proxyOptionsOf( // FIXME 正常环境是不需要的
         host = "127.0.0.1",
         port = 7890,
         type = ProxyType.SOCKS5
       )*/
+    ))
+    quadDns = WebClient.create(mutinyVertx, webClientOptionsOf(
+      protocolVersion = HttpVersion.HTTP_2,
+      http2KeepAliveTimeout = 60,
+      http2MaxPoolSize = 1,
+      useAlpn = true,
+      ssl = true,
     ))
   }
 
@@ -59,7 +66,7 @@ class DnsOverHttpsVerticle: AbstractVerticle() {
 
   // https://cloudflare-dns.com/dns-query
   private fun queryCloudflare(domain: String): Uni<JsonArray> =
-    client.get(443, "1.1.1.1", "/dns-query")
+    cloudflareDns.get(443, "1.1.1.1", "/dns-query")
       .virtualHost("cloudflare-dns.com")
       .addQueryParam("name", domain)
       .addQueryParam("type", "A")
@@ -76,7 +83,7 @@ class DnsOverHttpsVerticle: AbstractVerticle() {
 
   // https://dns.quad9.net:5053/dns-query
   private fun queryQuad(domain: String, type: String): Uni<JsonArray> =
-    client.get(5053, "9.9.9.9", "/dns-query")
+    quadDns.get(5053, "9.9.9.9", "/dns-query")
       .virtualHost("dns.quad9.net")
       .addQueryParam("name", domain)
       .addQueryParam("type", type)
