@@ -97,11 +97,9 @@ class NettyDnsVerticle : CoroutineVerticle() {
             log.debug("UDP服务已经启动")
 
             RestService.addStaticAddress("1.1.1.1", "DNS")
-                .onItem().transformToUni { _ -> RestService.addStaticAddress("9.9.9.9", "DNS") }
-                .subscribe().with({
+                .onItemOrFailure().transformToUni { _, _ -> RestService.addStaticAddress("9.9.9.9", "DNS") }
+                .subscribe().with {
                     log.debug("DNS服务已加到列表中")
-                }) { err ->
-                    log.error(err.message)
                 }
 
         } catch (e: Exception) {

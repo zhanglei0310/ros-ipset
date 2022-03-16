@@ -2,6 +2,7 @@ package cn.foperate.ros.service
 
 import io.smallrye.mutiny.Multi
 import io.smallrye.mutiny.Uni
+import io.vertx.core.http.HttpVersion
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.core.json.jsonObjectOf
@@ -12,7 +13,7 @@ import org.slf4j.LoggerFactory
 
 object RestService {
     private val log = LoggerFactory.getLogger(RestService::class.java)
-    private val base = "/rest"
+    private const val base = "/rest"
     private lateinit var client: WebClient
     private lateinit var rosListKey: String
     private lateinit var rosUser: String
@@ -22,10 +23,14 @@ object RestService {
         client = WebClient.create(vertx, webClientOptionsOf(
             defaultHost = config.getString("host"),
             defaultPort = config.getInteger("port", 443),
+            protocolVersion = HttpVersion.HTTP_1_1, // 应该没有KEEP_ALIVE功能
+            keepAlive = true,
+            keepAliveTimeout = 60,
             ssl = true,
             trustAll = true,
             verifyHost = false,
-            connectTimeout = 5000
+            connectTimeout = 5000,
+            poolEventLoopSize = 1
         ))
         rosListKey = config.getString("listName")
         rosUser = config.getString("user")
@@ -57,7 +62,7 @@ object RestService {
             }
     }
 
-    fun addOrUpdateProxyAddress(ip: String, domain: String): Uni<JsonObject> {
+    fun addOrUpdateProxyAddress(ip: String, domain: String): Uni<Boolean> {
         return client.get("$base/ip/firewall/address-list")
             .basicAuthentication(rosUser, rosPwd)
             .addQueryParam("list", rosListKey)
@@ -79,7 +84,9 @@ object RestService {
                         .put("$base/ip/firewall/address-list")
                         .basicAuthentication(rosUser, rosPwd)
                         .sendJsonObject(item)
-                        .onItem().transform { it.bodyAsJsonObject() }
+                        .onItem().transform {
+                            true // it.bodyAsJsonObject()
+                        }
                 } else {
                     val id = result.getJsonObject(0).getString(".id")
                     val item = jsonObjectOf(
@@ -88,13 +95,19 @@ object RestService {
                     client.put("$base/ip/firewall/address-list/$id")
                         .basicAuthentication(rosUser, rosPwd)
                         .sendJsonObject(item)
-                        .onItem().transform { it.bodyAsJsonObject() }
+                        .onItem().transform {
+                            true // it.bodyAsJsonObject()
+                        }
                 }
+            }
+            .onFailure().recoverWithItem { e ->
+                log.error(e.message)
+                false
             }
 
     }
 
-    fun addStaticAddress(ip: String, domain: String, listName: String = rosListKey ): Uni<JsonObject> {
+    fun addStaticAddress(ip: String, domain: String, listName: String = rosListKey ): Uni<Boolean> {
         val item = jsonObjectOf(
             "list" to listName,
             "address" to ip,
@@ -104,7 +117,8 @@ object RestService {
             .put("$base/ip/firewall/address-list")
             .basicAuthentication(rosUser, rosPwd)
             .sendJsonObject(item)
-            .onItem().transform { it.bodyAsJsonObject() }
+            .onItem().transform{ true }
+            .onFailure().recoverWithItem(false)
     }
 
     fun deleteAddressListItem(id: String): Uni<String> {

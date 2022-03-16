@@ -1,6 +1,8 @@
 package cn.foperate.ros.app
 
+import cn.foperate.ros.service.RestService
 import cn.foperate.ros.verticle.DnsOverHttpsVerticle
+import io.vertx.config.ConfigRetriever
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.core.json.jsonArrayOf
@@ -14,15 +16,15 @@ object RestClient {
     fun main(args: Array<String>) {
         val vertx = Vertx.vertx()
 
-        /*ConfigRetriever.create(vertx.delegate)
+        ConfigRetriever.create(vertx.delegate)
             .config
             .onSuccess {
                 RestService.init(vertx, it.getJsonObject("ros"))
                 RestService.addOrUpdateProxyAddress("172.217.24.74", "TEST")
-                    .subscribe().with { json -> println(json.encodePrettily()) }
-            }*/
+                    .subscribe().with { b -> println(b) }
+            }
 
-        vertx.deployVerticle(DnsOverHttpsVerticle())
+        /*vertx.deployVerticle(DnsOverHttpsVerticle())
             .onItem().transformToUni { id ->
                 log.debug(id)
                 vertx.eventBus().request<JsonObject>(DnsOverHttpsVerticle.DNS_ADDRESS, jsonObjectOf(
@@ -39,7 +41,7 @@ object RestClient {
                 }
             }) {
                 log.error(it.message)
-            }
+            }*/
 
         /*QuadService.init(vertx)
         QuadService.query("www.netflix.com", "A")
