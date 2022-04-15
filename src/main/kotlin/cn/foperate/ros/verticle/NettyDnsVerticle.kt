@@ -111,7 +111,7 @@ class NettyDnsVerticle : CoroutineVerticle() {
         dnsServer.close()
     }
 
-    fun handleDnsQuery(dnsQuestion: DnsQuestion, response: DatagramDnsResponse) {
+    private fun handleDnsQuery(dnsQuestion: DnsQuestion, response: DatagramDnsResponse) {
         try {
             val questionName = dnsQuestion.name()
             val questionType = dnsQuestion.type().name()
@@ -216,20 +216,20 @@ class NettyDnsVerticle : CoroutineVerticle() {
                     ))
                         .onItem().transform { it.body() }
                         .subscribe().with ({ reply -> // 由于实现的特殊性，不会有异常分支
-                            if (reply.getInteger("Status")!=0) {
+                            if (reply.getInteger("Status")!=0) { // 没有获得正常结果时，从备用服务器解析结果
                                 // 但是请求失败后，会从备用服务器解析结果
-                                backupClient.proxy(dnsQuestion).onSuccess {
+                                proxyClient.proxy(dnsQuestion).onSuccess {
                                     log.debug(it.toString())
                                     for (answer in it) {
                                         response.addRecord(DnsSection.ANSWER, answer)
                                     }
                                     dnsServer.send(response)
-                                }.onFailure {
+                                }.onFailure { e ->
                                     val dest = response.recipient().address.toString()
-                                    log.error("GFW查询错误： $dest -> $questionName [${it.message}]")
-                                    if (it is DnsError) {
-                                        response.setCode(DnsResponseCode.valueOf(it.code.code()))
-                                        for (answer in it.record) {
+                                    log.error("GFW查询错误: $dest -> $questionName [${e.message}]")
+                                    if (e is DnsError) {
+                                        response.setCode(DnsResponseCode.valueOf(e.code.code()))
+                                        for (answer in e.record) {
                                             response.addRecord(DnsSection.ANSWER, answer)
                                         }
                                         dnsServer.send(response)

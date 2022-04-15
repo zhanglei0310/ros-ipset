@@ -1,16 +1,12 @@
 package cn.foperate.ros.verticle
 
-import io.smallrye.mutiny.Uni
-import io.vertx.core.AbstractVerticle
-import io.vertx.core.Context
-import io.vertx.core.Promise
-import io.vertx.core.Vertx
+import io.vertx.core.*
 import io.vertx.core.http.HttpVersion
 import io.vertx.core.json.JsonObject
+import io.vertx.ext.web.client.WebClient
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.kotlin.ext.web.client.webClientOptionsOf
 import io.vertx.mutiny.core.eventbus.EventBus
-import io.vertx.mutiny.ext.web.client.WebClient
 import org.slf4j.LoggerFactory
 
 class DnsOverHttpsVerticle: AbstractVerticle() {
@@ -23,7 +19,7 @@ class DnsOverHttpsVerticle: AbstractVerticle() {
     super.init(vertx, context)
     val mutinyVertx = io.vertx.mutiny.core.Vertx(vertx)
     bus = mutinyVertx.eventBus()
-    cloudflareDns = WebClient.create(mutinyVertx, webClientOptionsOf(
+    cloudflareDns = WebClient.create(vertx, webClientOptionsOf(
       http2ConnectionWindowSize = 20,
       http2KeepAliveTimeout = 60,
       http2MaxPoolSize = 1,
@@ -36,7 +32,7 @@ class DnsOverHttpsVerticle: AbstractVerticle() {
         type = ProxyType.SOCKS5
       )*/
     ))
-    quadDns = WebClient.create(mutinyVertx, webClientOptionsOf(
+    quadDns = WebClient.create(vertx, webClientOptionsOf(
       http2KeepAliveTimeout = 60,
       http2MaxPoolSize = 1,
       protocolVersion = HttpVersion.HTTP_2, // 应该没有KEEP_ALIVE功能
@@ -53,20 +49,13 @@ class DnsOverHttpsVerticle: AbstractVerticle() {
         queryQuad(
           query.getString("domain"),
           query.getString("type")
-        ).onFailure().transform { error ->
-          quadDns.close()
-          error
-        }
+        )
       } else {
-        queryCloudflare( query.getString("domain") )
-          .onFailure().transform { error ->
-            cloudflareDns.close()
-            error
-          }
+        queryCloudflare(query.getString("domain"))
       }
-      answer.subscribe().with ({
+      answer.onSuccess{
         msg.reply(it)
-      }) {
+      }.onFailure {
         log.error(it.message)
         msg.fail(500, it.message)
       }
@@ -75,7 +64,7 @@ class DnsOverHttpsVerticle: AbstractVerticle() {
   }
 
   // https://cloudflare-dns.com/dns-query
-  private fun queryCloudflare(domain: String): Uni<JsonObject> =
+  private fun queryCloudflare(domain: String): Future<JsonObject> =
     cloudflareDns.get(443, "1.1.1.1", "/dns-query")
       .virtualHost("cloudflare-dns.com")
       .addQueryParam("name", domain)
@@ -83,27 +72,28 @@ class DnsOverHttpsVerticle: AbstractVerticle() {
       .putHeader("Accept", "application/dns-json")
       .timeout(10000L)
       .send()
-      .onItem().transform {
+      .map {
         it.bodyAsJsonObject()
       }
-      .onFailure().recoverWithItem{ error ->
+      .recover { error ->
         log.error(error.message)
-        jsonObjectOf("Status" to 0)
+        // 出现网络异常，将状态设为SERVIAL
+        Future.succeededFuture(jsonObjectOf( "Status" to 2 ))
       }
 
   // https://dns.quad9.net:5053/dns-query
-  private fun queryQuad(domain: String, type: String): Uni<JsonObject> =
+  private fun queryQuad(domain: String, type: String): Future<JsonObject> =
     quadDns.get(5053, "9.9.9.9", "/dns-query")
       .virtualHost("dns.quad9.net")
       .addQueryParam("name", domain)
       .addQueryParam("type", type)
       .timeout(10000L)
       .send()
-      .onFailure().retry().atMost(1L)
-      .onItem().transform {
-        it.bodyAsJsonObject()
-        //if (resp.getInteger("Status")!=0) {}
-        //resp.getJsonArray("Answer", jsonArrayOf())
+      .map { it.bodyAsJsonObject() }
+      .recover {
+        log.error("Netflix查询错误 $domain($type): ${it.message}")
+        // 出现网络异常，将状态设为SERVIAL
+        Future.succeededFuture(jsonObjectOf( "Status" to 2 ))
       }
 
   companion object {
