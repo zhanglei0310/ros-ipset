@@ -21,16 +21,16 @@ object RestService {
 
     fun init(vertx: Vertx, config: JsonObject) {
         client = WebClient.create(vertx, webClientOptionsOf(
+            connectTimeout = 5000,
             defaultHost = config.getString("host"),
             defaultPort = config.getInteger("port", 443),
-            protocolVersion = HttpVersion.HTTP_1_1, // 应该没有KEEP_ALIVE功能
             keepAlive = true,
             keepAliveTimeout = 60,
+            maxPoolSize = 2,
+            protocolVersion = HttpVersion.HTTP_1_1, // 应该没有KEEP_ALIVE功能
             ssl = true,
             trustAll = true,
             verifyHost = false,
-            connectTimeout = 5000,
-            poolEventLoopSize = 1
         ))
         rosListKey = config.getString("listName")
         rosUser = config.getString("user")
