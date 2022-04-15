@@ -26,11 +26,6 @@ class DnsOverHttpsVerticle: AbstractVerticle() {
       protocolVersion = HttpVersion.HTTP_2, // 应该没有KEEP_ALIVE功能
       ssl = true,
       useAlpn = true,
-      /*proxyOptions = proxyOptionsOf( // FIXME 正常环境是不需要的
-        host = "127.0.0.1",
-        port = 7890,
-        type = ProxyType.SOCKS5
-      )*/
     ))
     quadDns = WebClient.create(vertx, webClientOptionsOf(
       http2KeepAliveTimeout = 60,
