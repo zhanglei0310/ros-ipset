@@ -131,53 +131,63 @@ class NettyDnsVerticle : CoroutineVerticle() {
                     ))
                         .onItem().transform { it.body() }
                         .subscribe().with ({ reply ->
-                            response.setCode(DnsResponseCode.valueOf(reply.getInteger("Status")))
+                            val status = reply.getInteger("Status")
+                            response.setCode(DnsResponseCode.valueOf(status))
                             val answers = reply.getJsonArray("Answer", jsonArrayOf())
-                            if (answers.isEmpty) {
-                                val dest = response.recipient().address.toString()
-                                log.info("$questionName 没有对应的记录: $dest -> $questionName ($questionType)")
-                                log.info(reply.encodePrettily())
-                                dnsServer.send(response)
-                            } else {
-                                val aRecordIps = jsonArrayOf()
-                                answers.forEach { answer -> // 在Alpine上会遇到奇怪的现象会大分片失败，存疑。
-                                    answer as JsonObject
-                                    when (val type = answer.getInteger("type")){
-                                        1 -> {
-                                            val ip = answer.getString("data")
-                                            val buf = addressToBuffer(ip)
-                                            val queryAnswer = DefaultDnsRawRecord(answer.getString("name"), DnsRecordType.A, 600, buf)
-                                            response.addRecord(DnsSection.ANSWER, queryAnswer)
-                                            aRecordIps.add(ip)
-                                        }
-                                        5 -> {
-                                            val str = answer.getString("data")
-                                            val buf = nameToBuffer(str)
-                                            val queryAnswer = DefaultDnsRawRecord(answer.getString("name"), DnsRecordType.CNAME, answer.getLong("TTL"), buf)
-                                            response.addRecord(DnsSection.ANSWER, queryAnswer)
-                                        }
-                                        28 -> {
-                                            val ip = answer.getString("data")
-                                            val buf = addressToBuffer(ip)
-                                            val queryAnswer = DefaultDnsRawRecord(answer.getString("name"), DnsRecordType.AAAA, 600, buf)
-                                            response.addRecord(DnsSection.ANSWER, queryAnswer)
-                                        }
-                                        else -> {
-                                            log.error("收到了异常的解析结果： $type")
+                            when {
+                                status==2 -> {
+                                    val dest = response.recipient().address.toString()
+                                    val comment = reply.getString("Comment")
+                                    log.info("$questionName 服务器错误: $dest -> $comment")
+                                    dnsServer.send(response)
+                                }
+                                answers.isEmpty -> {
+                                    val dest = response.recipient().address.toString()
+                                    log.info("$questionName 没有对应的记录: $dest -> $questionType")
+                                    log.info(reply.encodePrettily())
+                                    dnsServer.send(response)
+                                }
+                                else -> {
+                                    val aRecordIps = jsonArrayOf()
+                                    answers.forEach { answer -> // 在Alpine上会遇到奇怪的现象会大分片失败，存疑。
+                                        answer as JsonObject
+                                        when (val type = answer.getInteger("type")){
+                                            1 -> {
+                                                val ip = answer.getString("data")
+                                                val buf = addressToBuffer(ip)
+                                                val queryAnswer = DefaultDnsRawRecord(answer.getString("name"), DnsRecordType.A, 600, buf)
+                                                response.addRecord(DnsSection.ANSWER, queryAnswer)
+                                                aRecordIps.add(ip)
+                                            }
+                                            5 -> {
+                                                val str = answer.getString("data")
+                                                val buf = nameToBuffer(str)
+                                                val queryAnswer = DefaultDnsRawRecord(answer.getString("name"), DnsRecordType.CNAME, answer.getLong("TTL"), buf)
+                                                response.addRecord(DnsSection.ANSWER, queryAnswer)
+                                            }
+                                            28 -> {
+                                                val ip = answer.getString("data")
+                                                val buf = addressToBuffer(ip)
+                                                val queryAnswer = DefaultDnsRawRecord(answer.getString("name"), DnsRecordType.AAAA, 600, buf)
+                                                response.addRecord(DnsSection.ANSWER, queryAnswer)
+                                            }
+                                            else -> {
+                                                log.error("收到了异常的解析结果： $type")
+                                            }
                                         }
                                     }
-                                }
-                                dnsServer.send(response)
-                                if (!aRecordIps.isEmpty) {
-                                    eb.request<Long>(
-                                        RestVerticle.EVENT_ADDRESS, jsonObjectOf(
-                                            "domain" to questionName,
-                                            "address" to aRecordIps
-                                        )
-                                    ).subscribe().with({
-                                        log.debug("call success")
-                                    }) { err ->
-                                        log.error(err.message)
+                                    dnsServer.send(response)
+                                    if (!aRecordIps.isEmpty) {
+                                        eb.request<Long>(
+                                            RestVerticle.EVENT_ADDRESS, jsonObjectOf(
+                                                "domain" to questionName,
+                                                "address" to aRecordIps
+                                            )
+                                        ).subscribe().with({
+                                            log.debug("call success")
+                                        }) { err ->
+                                            log.error(err.message)
+                                        }
                                     }
                                 }
                             }
