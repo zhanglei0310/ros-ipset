@@ -53,6 +53,7 @@ class DnsProxyImpl(private val vertx: VertxInternal, private val options: DnsPro
                 query?.handle(msg)
             }
 
+            @Deprecated("Deprecated in Java")
             override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
                 log.error(cause.message, cause)
                 ctx.fireExceptionCaught(cause) // FIXME 没出现过，还不清楚是否需要继续抛出

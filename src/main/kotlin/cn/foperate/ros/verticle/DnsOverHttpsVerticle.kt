@@ -6,9 +6,7 @@ import io.vertx.core.Context
 import io.vertx.core.Promise
 import io.vertx.core.Vertx
 import io.vertx.core.http.HttpVersion
-import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
-import io.vertx.kotlin.core.json.jsonArrayOf
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.kotlin.ext.web.client.webClientOptionsOf
 import io.vertx.mutiny.core.eventbus.EventBus
@@ -26,11 +24,12 @@ class DnsOverHttpsVerticle: AbstractVerticle() {
     val mutinyVertx = io.vertx.mutiny.core.Vertx(vertx)
     bus = mutinyVertx.eventBus()
     cloudflareDns = WebClient.create(mutinyVertx, webClientOptionsOf(
-      protocolVersion = HttpVersion.HTTP_2, // 应该没有KEEP_ALIVE功能
+      http2ConnectionWindowSize = 20,
       http2KeepAliveTimeout = 60,
       http2MaxPoolSize = 1,
-      useAlpn = true,
+      protocolVersion = HttpVersion.HTTP_2, // 应该没有KEEP_ALIVE功能
       ssl = true,
+      useAlpn = true,
       /*proxyOptions = proxyOptionsOf( // FIXME 正常环境是不需要的
         host = "127.0.0.1",
         port = 7890,
@@ -38,11 +37,11 @@ class DnsOverHttpsVerticle: AbstractVerticle() {
       )*/
     ))
     quadDns = WebClient.create(mutinyVertx, webClientOptionsOf(
-      protocolVersion = HttpVersion.HTTP_2,
       http2KeepAliveTimeout = 60,
       http2MaxPoolSize = 1,
-      useAlpn = true,
+      protocolVersion = HttpVersion.HTTP_2, // 应该没有KEEP_ALIVE功能
       ssl = true,
+      useAlpn = true,
     ))
   }
 
@@ -54,9 +53,16 @@ class DnsOverHttpsVerticle: AbstractVerticle() {
         queryQuad(
           query.getString("domain"),
           query.getString("type")
-        )
+        ).onFailure().transform { error ->
+          quadDns.close()
+          error
+        }
       } else {
         queryCloudflare( query.getString("domain") )
+          .onFailure().transform { error ->
+            cloudflareDns.close()
+            error
+          }
       }
       answer.subscribe().with ({
         msg.reply(it)

@@ -136,6 +136,7 @@ class NettyDnsVerticle : CoroutineVerticle() {
                             if (answers.isEmpty) {
                                 val dest = response.recipient().address.toString()
                                 log.info("$questionName 没有对应的记录: $dest -> $questionName ($questionType)")
+                                log.info(reply.encodePrettily())
                                 dnsServer.send(response)
                             } else {
                                 val aRecordIps = jsonArrayOf()
@@ -181,7 +182,7 @@ class NettyDnsVerticle : CoroutineVerticle() {
                                 }
                             }
                         }) {
-                            log.error("Netflix查询错误 ${it.message}：$questionName $questionType")
+                            log.error("Netflix查询错误 ${it.message}：$questionName $questionType", it)
                         }
                 }
                 DomainUtil.matchBlock(questionName) -> {
