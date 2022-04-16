@@ -101,7 +101,7 @@ object RestService {
                 }
             }
             .onFailure().recoverWithItem { e ->
-                log.error(e.message)
+                log.error(e.message, e)
                 false
             }
 
