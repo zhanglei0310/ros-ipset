@@ -6,6 +6,7 @@ import io.vertx.core.http.HttpVersion
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.core.json.jsonObjectOf
+import io.vertx.kotlin.core.net.openSSLEngineOptionsOf
 import io.vertx.kotlin.ext.web.client.webClientOptionsOf
 import io.vertx.mutiny.core.Vertx
 import io.vertx.mutiny.ext.web.client.WebClient
@@ -27,6 +28,9 @@ object RestService {
             keepAlive = true,
             keepAliveTimeout = 60,
             maxPoolSize = 2,
+            openSslEngineOptions = openSSLEngineOptionsOf(
+                sessionCacheEnabled = true
+            ),
             protocolVersion = HttpVersion.HTTP_1_1, // 应该没有KEEP_ALIVE功能
             ssl = true,
             trustAll = true,

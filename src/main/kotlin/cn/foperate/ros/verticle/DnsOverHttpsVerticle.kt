@@ -110,7 +110,7 @@ class DnsOverHttpsVerticle: AbstractVerticle() {
   // https://dns.quad9.net:5053/dns-query
   private fun queryQuad(domain: String, type: String): Future<JsonObject> =
     quadDns.get(5053, "9.9.9.9", "/dns-query")
-      .virtualHost("dns.quad9.net")
+      .virtualHost("dns9.quad9.net")
       .addQueryParam("name", domain)
       .addQueryParam("type", type)
       .timeout(10000L)
