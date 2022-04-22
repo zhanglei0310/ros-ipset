@@ -12,7 +12,7 @@
         <kotlin.version>1.6.20</kotlin.version>
         <kotlin.compiler.jvmTarget>11</kotlin.compiler.jvmTarget>
         <mutiny.version>2.20.0</mutiny.version>
-        <vertx.version>4.2.5</vertx.version>
+        <vertx.version>4.2.7</vertx.version>
         <main.class>cn.foperate.ros.AppLauncher</main.class>
         <vretx.launcher>cn.foperate.ros.Launcher</vretx.launcher>
         <graalvm.version>21.0.0.2</graalvm.version>
