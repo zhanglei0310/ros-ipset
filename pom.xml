@@ -12,8 +12,9 @@
         <kotlin.version>1.6.20</kotlin.version>
         <kotlin.compiler.jvmTarget>11</kotlin.compiler.jvmTarget>
         <mutiny.version>2.20.0</mutiny.version>
-        <vertx.version>4.2.5</vertx.version>
-        <main.class>cn.foperate.ros.Launcher</main.class>
+        <vertx.version>4.2.7</vertx.version>
+        <main.class>cn.foperate.ros.AppLauncher</main.class>
+        <vretx.launcher>cn.foperate.ros.Launcher</vretx.launcher>
         <graalvm.version>21.0.0.2</graalvm.version>
     </properties>
 
@@ -53,8 +54,13 @@
         </dependency>
         <dependency>
             <groupId>io.netty</groupId>
+            <artifactId>netty-tcnative-boringssl-static</artifactId>
+            <classifier>linux-x86_64</classifier>
+        </dependency>
+        <dependency>
+            <groupId>io.netty</groupId>
             <artifactId>netty-resolver-dns-native-macos</artifactId>
-            <classifier>osx-x86_64</classifier>
+            <classifier>osx-aarch_64</classifier>
         </dependency>
         <!-- logback -->
         <dependency>
@@ -186,9 +192,26 @@
                 </configuration>
             </plugin>
             <plugin>
+                <groupId>io.reactiverse</groupId>
+                <artifactId>vertx-maven-plugin</artifactId>
+                <version>1.0.27</version>
+                <executions>
+                    <execution>
+                        <id>vmp</id>
+                        <goals>
+                            <goal>initialize</goal>
+                            <goal>package</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <redeploy>true</redeploy>
+                </configuration>
+            </plugin>
+            <plugin>
                 <groupId>com.google.cloud.tools</groupId>
                 <artifactId>jib-maven-plugin</artifactId>
-                <version>3.2.0</version>
+                <version>3.2.1</version>
                 <configuration>
                     <from>
                         <image>docker://eclipse-temurin:11-jre</image>

@@ -6,6 +6,7 @@ import io.vertx.core.http.HttpVersion
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.core.json.jsonObjectOf
+import io.vertx.kotlin.core.net.openSSLEngineOptionsOf
 import io.vertx.kotlin.ext.web.client.webClientOptionsOf
 import io.vertx.mutiny.core.Vertx
 import io.vertx.mutiny.ext.web.client.WebClient
@@ -21,16 +22,19 @@ object RestService {
 
     fun init(vertx: Vertx, config: JsonObject) {
         client = WebClient.create(vertx, webClientOptionsOf(
+            connectTimeout = 5000,
             defaultHost = config.getString("host"),
             defaultPort = config.getInteger("port", 443),
-            protocolVersion = HttpVersion.HTTP_1_1, // 应该没有KEEP_ALIVE功能
             keepAlive = true,
             keepAliveTimeout = 60,
+            maxPoolSize = 2,
+            openSslEngineOptions = openSSLEngineOptionsOf(
+                sessionCacheEnabled = true
+            ),
+            protocolVersion = HttpVersion.HTTP_1_1, // 应该没有KEEP_ALIVE功能
             ssl = true,
             trustAll = true,
             verifyHost = false,
-            connectTimeout = 5000,
-            poolEventLoopSize = 1
         ))
         rosListKey = config.getString("listName")
         rosUser = config.getString("user")
@@ -101,7 +105,7 @@ object RestService {
                 }
             }
             .onFailure().recoverWithItem { e ->
-                log.error(e.message)
+                log.error(e.message, e)
                 false
             }
 
