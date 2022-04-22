@@ -13,7 +13,8 @@
         <kotlin.compiler.jvmTarget>11</kotlin.compiler.jvmTarget>
         <mutiny.version>2.20.0</mutiny.version>
         <vertx.version>4.2.5</vertx.version>
-        <main.class>cn.foperate.ros.Launcher</main.class>
+        <main.class>cn.foperate.ros.AppLauncher</main.class>
+        <vretx.launcher>cn.foperate.ros.Launcher</vretx.launcher>
         <graalvm.version>21.0.0.2</graalvm.version>
     </properties>
 
@@ -59,7 +60,7 @@
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-resolver-dns-native-macos</artifactId>
-            <classifier>osx-x86_64</classifier>
+            <classifier>osx-aarch_64</classifier>
         </dependency>
         <!-- logback -->
         <dependency>
@@ -188,6 +189,23 @@
                     <source>11</source>
                     <target>11</target>
                     <encoding>UTF-8</encoding>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>io.reactiverse</groupId>
+                <artifactId>vertx-maven-plugin</artifactId>
+                <version>1.0.27</version>
+                <executions>
+                    <execution>
+                        <id>vmp</id>
+                        <goals>
+                            <goal>initialize</goal>
+                            <goal>package</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <redeploy>true</redeploy>
                 </configuration>
             </plugin>
             <plugin>
